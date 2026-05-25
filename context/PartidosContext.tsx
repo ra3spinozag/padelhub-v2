@@ -1,26 +1,25 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
-import { createMatch } from "../services/matches.service";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createMatch, joinMatch, leaveMatch, listMatches,
+  type CreateMatchPayload,
+} from "../services/matches.service";
 
 // ── Backend-aligned types ──────────────────────────────────────────────────────
 
-export interface MatchPlayerUser {
+export interface MatchPlayer {
   id: string;
   name: string;
   level: string;
-  mmr: number;
-}
-
-export interface MatchPlayer {
-  id: string;
+  photo_url: string | null;
   team: "team_a" | "team_b";
-  status: "confirmed" | "pending";
-  joined_at: string;
-  users: MatchPlayerUser;
+  joined: string;
 }
 
 export interface MatchOrganizer {
   id: string;
   name: string;
+  level?: string;
+  zone?: string;
   photo_url?: string;
 }
 
@@ -28,7 +27,7 @@ export interface MatchResult {
   id: string;
   score_team_a: string;
   score_team_b: string;
-  winner: "team_a" | "team_b";
+  winner: "team_a" | "team_b" | "draw";
   registered_at: string;
 }
 
@@ -43,12 +42,17 @@ export interface Partido {
   id: string;
   club: string;
   format: "doubles" | "singles";
-  status: "open" | "finished" | "pending" | "cancelled";
+  status: "open" | "confirmed" | "in_progress" | "finished" | "cancelled";
   match_date: string;
   match_time: string;
-  created_at?: string;
+  zone?: string;
   organizer?: MatchOrganizer;
-  match_players: MatchPlayer[];
+  players: MatchPlayer[];
+  max_players?: number;
+  player_count?: number;
+  spots_left?: number;
+  is_full?: boolean;
+  created_at?: string;
   match_results?: MatchResult;
   mmr_history?: MmrHistory[];
 }
@@ -58,21 +62,20 @@ export interface Partido {
 const DIAS_ES  = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
 const MESES_ES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
-/** "2026-05-25T00:00:00.000Z" → "Dom 25 May" */
 export function parseMatchDate(isoDate: string): string {
   const d = new Date(isoDate);
   return `${DIAS_ES[d.getUTCDay()]} ${d.getUTCDate()} ${MESES_ES[d.getUTCMonth()]}`;
 }
 
-/** "1970-01-01T19:30:00.000Z" → "19:30" */
 export function parseMatchTime(isoTime: string): string {
+  if (/^\d{2}:\d{2}(:\d{2})?$/.test(isoTime)) return isoTime.slice(0, 5);
   const d = new Date(isoTime);
+  if (isNaN(d.getTime())) return isoTime;
   const h = d.getUTCHours().toString().padStart(2, "0");
   const m = d.getUTCMinutes().toString().padStart(2, "0");
   return `${h}:${m}`;
 }
 
-/** "Juan Pablo Belasteguín" → "JP" */
 export function getInitials(name: string): string {
   return name.split(" ").map(n => n[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 }
@@ -83,11 +86,12 @@ export function getFormatoLabel(format: "doubles" | "singles"): string {
 
 export function getStatusLabel(status: string): string {
   switch (status) {
-    case "open":      return "Abierto";
-    case "finished":  return "Finalizado";
-    case "pending":   return "Pendiente";
-    case "cancelled": return "Cancelado";
-    default:          return status;
+    case "open":        return "Abierto";
+    case "confirmed":   return "Confirmado";
+    case "in_progress": return "En curso";
+    case "finished":    return "Finalizado";
+    case "cancelled":   return "Cancelado";
+    default:            return status;
   }
 }
 
@@ -100,90 +104,62 @@ export function getAvatarColor(index: number): string {
 
 interface PartidosContextType {
   partidos:       Partido[];
-  agregarPartido: (p: Omit<Partido, "id">) => Promise<void>;
+  loading:        boolean;
+  fetchPartidos:  (zone?: string) => Promise<void>;
+  agregarPartido: (payload: CreateMatchPayload) => Promise<void>;
+  unirsePartido:  (matchId: string) => Promise<void>;
+  salirPartido:   (matchId: string) => Promise<void>;
 }
 
 const PartidosContext = createContext<PartidosContextType | null>(null);
 
-const _now      = new Date();
-const _nextWeek = new Date(_now.getTime() + 7 * 24 * 60 * 60 * 1000);
-const DEMO_USER_ID = "e8a1b3c4-ad56-4d23-9871-bcde12345678";
-
-const PARTIDOS_DEMO: Partido[] = [
-  {
-    id: "demo-partido-0001",
-    club: "Club Pádel Viña del Mar",
-    format: "doubles",
-    status: "open",
-    match_date: _nextWeek.toISOString(),
-    match_time: "1970-01-01T10:00:00.000Z",
-    created_at: _now.toISOString(),
-    organizer: {
-      id: DEMO_USER_ID,
-      name: "Felipe Martínez",
-    },
-    match_players: [
-      {
-        id: "mp-demo-001",
-        team: "team_a",
-        status: "confirmed",
-        joined_at: _now.toISOString(),
-        users: { id: DEMO_USER_ID, name: "Felipe Martínez", level: "4ta", mmr: 1248 },
-      },
-      {
-        id: "mp-demo-002",
-        team: "team_a",
-        status: "confirmed",
-        joined_at: _now.toISOString(),
-        users: { id: "mock-player-002", name: "Miguel Ríos", level: "4ta", mmr: 1261 },
-      },
-      {
-        id: "mp-demo-003",
-        team: "team_b",
-        status: "confirmed",
-        joined_at: _now.toISOString(),
-        users: { id: "mock-player-003", name: "Ana Paredes", level: "4ta", mmr: 1195 },
-      },
-      {
-        id: "mp-demo-004",
-        team: "team_b",
-        status: "confirmed",
-        joined_at: _now.toISOString(),
-        users: { id: "mock-player-004", name: "Javier Vega", level: "3ra", mmr: 1219 },
-      },
-    ],
-  },
-];
-
 export function PartidosProvider({
   children,
   userId,
+  userZone,
 }: {
-  children: ReactNode;
-  userId: string | undefined;
+  children:  ReactNode;
+  userId:    string | undefined;
+  userZone?: string | null;
 }) {
-  const [partidos, setPartidos] = useState<Partido[]>(
-    userId === DEMO_USER_ID ? PARTIDOS_DEMO : []
-  );
+  const [partidos, setPartidos] = useState<Partido[]>([]);
+  const [loading,  setLoading]  = useState(false);
 
-  const agregarPartido = async (p: Omit<Partido, "id">) => {
+  const fetchPartidos = useCallback(async (zone?: string) => {
+    setLoading(true);
     try {
-      const created = await createMatch({
-        organizer_id: p.organizer?.id ?? "",
-        club:         p.club,
-        format:       p.format,
-        match_date:   p.match_date,
-        match_time:   p.match_time,
-      });
-      setPartidos((prev) => [created, ...prev]);
+      const data = await listMatches({ zone: zone ?? userZone ?? undefined, status: "open" });
+      setPartidos(data);
     } catch {
-      // Fallback to local state when API is unavailable or rejects
-      setPartidos((prev) => [{ ...p, id: `local-${Date.now()}` }, ...prev]);
+      // keep existing state on error
+    } finally {
+      setLoading(false);
     }
+  }, [userZone]);
+
+  useEffect(() => {
+    if (userId) fetchPartidos();
+  }, [userId, fetchPartidos]);
+
+  const agregarPartido = async (payload: CreateMatchPayload) => {
+    await createMatch(payload);
+    await fetchPartidos();
+  };
+
+  const unirsePartido = async (matchId: string) => {
+    if (!userId) throw new Error("No autenticado");
+    await joinMatch(matchId, userId);
+    await fetchPartidos();
+  };
+
+  const salirPartido = async (matchId: string) => {
+    if (!userId) throw new Error("No autenticado");
+    await leaveMatch(matchId, userId);
+    await fetchPartidos();
   };
 
   return (
-    <PartidosContext.Provider value={{ partidos, agregarPartido }}>
+    <PartidosContext.Provider value={{ partidos, loading, fetchPartidos, agregarPartido, unirsePartido, salirPartido }}>
       {children}
     </PartidosContext.Provider>
   );

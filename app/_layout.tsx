@@ -30,7 +30,7 @@ function RouteGuard() {
 function AppWithProviders() {
   const { user } = useAuth();
   return (
-    <PartidosProvider userId={user?.id}>
+    <PartidosProvider userId={user?.id} userZone={user?.zone}>
       <RouteGuard />
       <Stack screenOptions={{ headerShown: false }} />
     </PartidosProvider>

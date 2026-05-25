@@ -101,6 +101,21 @@ export async function uploadProfilePhoto(
   return (data as { photo_url: string }).photo_url;
 }
 
+// ── Listar usuarios (para picker de invitaciones) ─────────────────────────────
+export interface PublicUser {
+  id: string;
+  name: string;
+  level: string | null;
+  zone: string | null;
+  photo_url: string | null;
+  mmr: number;
+}
+
+export async function listUsers(): Promise<PublicUser[]> {
+  const token = await getStoredToken();
+  return apiFetch<PublicUser[]>("/users", {}, token ?? undefined);
+}
+
 // ── HU-004: Logout ─────────────────────────────────────────────────────────────
 export async function logoutUser(): Promise<void> {
   await AsyncStorage.multiRemove(["ph_token", "ph_user"]);

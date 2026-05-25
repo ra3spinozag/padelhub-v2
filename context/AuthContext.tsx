@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   createContext,
   useContext,
@@ -15,6 +16,8 @@ import {
   type RegisterData,
   type User,
 } from "../services/auth.service";
+
+const USER_KEY = "ph_user";
 
 interface AuthContextType {
   user: User | null;
@@ -60,8 +63,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const editarPerfil = async (data: Partial<User>) => {
     if (!user) return;
-    const updated = await updateProfile(user.id, data);
-    setUser(updated);
+    const snapshot  = user;
+    const optimistic = { ...user, ...data };
+
+    // Aplica el cambio inmediatamente en estado y cache local
+    setUser(optimistic);
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(optimistic));
+
+    try {
+      const updated = await updateProfile(user.id, data);
+      setUser(updated);
+    } catch (e) {
+      // Revierte al estado anterior si la API falla
+      setUser(snapshot);
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(snapshot));
+      throw e;
+    }
   };
 
   return (

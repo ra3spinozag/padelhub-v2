@@ -99,7 +99,7 @@ export default function HomeScreen() {
         <Text style={[S.sectionLabel, { marginBottom: 8 }]}>Próximo partido</Text>
 
         {proximoPartido ? (
-          <TouchableOpacity style={S.upcomingCard} onPress={() => router.push("/(app)/crear")}>
+          <TouchableOpacity style={S.upcomingCard} onPress={() => router.push(`/(app)/partido/${proximoPartido.id}` as any)}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <View style={{ flexDirection: "row", gap: 6 }}>
                 <View style={[S.pill, S.pillPurple]}>

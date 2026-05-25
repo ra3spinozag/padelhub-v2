@@ -49,3 +49,12 @@ export async function leaveMatch(matchId: string, userId: string): Promise<void>
     token ?? undefined
   );
 }
+
+export async function getMatch(matchId: string): Promise<Partido> {
+  const token = await getStoredToken();
+  return apiFetch<Partido>(
+    `/matches/${matchId}`,
+    {},
+    token ?? undefined
+  );
+}

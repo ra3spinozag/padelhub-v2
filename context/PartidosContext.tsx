@@ -27,7 +27,7 @@ export interface MatchResult {
   id: string;
   score_team_a: string;
   score_team_b: string;
-  winner: "team_a" | "team_b";
+  winner: "team_a" | "team_b" | "draw";
   registered_at: string;
 }
 
@@ -68,7 +68,9 @@ export function parseMatchDate(isoDate: string): string {
 }
 
 export function parseMatchTime(isoTime: string): string {
+  if (/^\d{2}:\d{2}(:\d{2})?$/.test(isoTime)) return isoTime.slice(0, 5);
   const d = new Date(isoTime);
+  if (isNaN(d.getTime())) return isoTime;
   const h = d.getUTCHours().toString().padStart(2, "0");
   const m = d.getUTCMinutes().toString().padStart(2, "0");
   return `${h}:${m}`;

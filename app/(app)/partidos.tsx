@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -13,8 +13,9 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import {
   getAvatarColor, getFormatoLabel, getInitials, getStatusLabel,
-  parseMatchDate, parseMatchTime, usePartidos,
+  parseMatchDate, parseMatchTime, usePartidos, type Partido,
 } from "../../context/PartidosContext";
+import { listMatches } from "../../services/matches.service";
 import { listUsers, type PublicUser } from "../../services/auth.service";
 import { sendInvitation } from "../../services/invitations.service";
 import { C, S } from "../../theme";
@@ -24,21 +25,52 @@ export default function PartidosScreen() {
   const { user } = useAuth();
   const { partidos, loading, fetchPartidos, unirsePartido, salirPartido } = usePartidos();
 
+  // Mis partidos activos (confirmed + in_progress)
+  const [misPartidos,   setMisPartidos]   = useState<Partido[]>([]);
+  const [loadingMios,   setLoadingMios]   = useState(false);
+
   // Join / Leave
   const [joining, setJoining] = useState<string | null>(null);
 
   // Invite modal
-  const [inviteMatchId,  setInviteMatchId]  = useState<string | null>(null);
-  const [allUsers,       setAllUsers]       = useState<PublicUser[]>([]);
-  const [loadingUsers,   setLoadingUsers]   = useState(false);
-  const [userFilter,     setUserFilter]     = useState("");
-  const [sendingInvite,  setSendingInvite]  = useState<string | null>(null);
-  const [invitedIds,     setInvitedIds]     = useState<Set<string>>(new Set());
+  const [inviteMatchId, setInviteMatchId]  = useState<string | null>(null);
+  const [allUsers,      setAllUsers]       = useState<PublicUser[]>([]);
+  const [loadingUsers,  setLoadingUsers]   = useState(false);
+  const [userFilter,    setUserFilter]     = useState("");
+  const [sendingInvite, setSendingInvite]  = useState<string | null>(null);
+  const [invitedIds,    setInvitedIds]     = useState<Set<string>>(new Set());
 
   const [toast, setToast] = useState("");
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
 
-  // ── Join / Leave ──────────────────────────────────────────────────────────────
+  // ── Fetch mis partidos activos ──────────────────────────────────────────
+  const fetchMisPartidos = useCallback(async () => {
+    if (!user?.id) return;
+    setLoadingMios(true);
+    try {
+      const [confirmed, inProgress] = await Promise.all([
+        listMatches({ zone: user.zone ?? undefined, status: "confirmed" }),
+        listMatches({ zone: user.zone ?? undefined, status: "in_progress" }),
+      ]);
+      const all = [...confirmed, ...inProgress];
+      setMisPartidos(
+        all.filter(m => m.players.some(p => p.id === user.id) || m.organizer?.id === user.id)
+      );
+    } catch {
+      // keep state
+    } finally {
+      setLoadingMios(false);
+    }
+  }, [user?.id, user?.zone]);
+
+  useEffect(() => { fetchMisPartidos(); }, [fetchMisPartidos]);
+
+  const handleRefreshAll = () => {
+    fetchPartidos();
+    fetchMisPartidos();
+  };
+
+  // ── Join / Leave ──────────────────────────────────────────────────────
   const handleJoinOrLeave = async (matchId: string, isJoined: boolean) => {
     setJoining(matchId);
     try {
@@ -56,7 +88,7 @@ export default function PartidosScreen() {
     }
   };
 
-  // ── Invite modal ──────────────────────────────────────────────────────────────
+  // ── Invite modal ──────────────────────────────────────────────────────
   const openInviteModal = async (matchId: string) => {
     setInviteMatchId(matchId);
     setUserFilter("");
@@ -92,14 +124,14 @@ export default function PartidosScreen() {
     .filter(u => !matchForInvite?.players.some(p => p.id === u.id))
     .filter(u => userFilter === "" || u.name.toLowerCase().includes(userFilter.toLowerCase()));
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────
   return (
     <View style={S.screen}>
       <ScrollView
         style={S.scroll}
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={() => fetchPartidos()} tintColor={C.accent} />
+          <RefreshControl refreshing={loading || loadingMios} onRefresh={handleRefreshAll} tintColor={C.accent} />
         }
       >
         {/* Header */}
@@ -108,7 +140,7 @@ export default function PartidosScreen() {
             <Text style={S.backBtnText}>←</Text>
           </TouchableOpacity>
           <View style={{ alignItems: "center" }}>
-            <Text style={{ fontSize: 18, fontWeight: "700", color: C.text }}>Partidos abiertos</Text>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: C.text }}>Partidos</Text>
             <Text style={{ fontSize: 12, color: C.text2 }}>{user?.zone ?? "tu zona"}</Text>
           </View>
           <View style={{ width: 36 }} />
@@ -116,9 +148,53 @@ export default function PartidosScreen() {
 
         <View style={{ paddingHorizontal: 20 }}>
 
+          {/* ── Mis partidos activos ────────────────────────────────── */}
+          {misPartidos.length > 0 && (
+            <>
+              <Text style={[S.sectionLabel, { marginBottom: 10 }]}>Mis partidos activos</Text>
+              {misPartidos.map((p) => {
+                const isInProgress = p.status === "in_progress";
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[S.card, { marginBottom: 12 }]}
+                    onPress={() => router.push(`/(app)/partido/${p.id}` as any)}
+                    activeOpacity={0.75}
+                  >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <View style={{ flexDirection: "row", gap: 6 }}>
+                        <View style={[S.pill, S.pillPurple]}>
+                          <Text style={[S.pillText, S.pillPurpleText]}>{getFormatoLabel(p.format)}</Text>
+                        </View>
+                        <View style={[S.pill, isInProgress
+                          ? { backgroundColor: "rgba(14,165,233,0.1)", borderWidth: 1, borderColor: "rgba(14,165,233,0.3)" }
+                          : S.pillGreen
+                        ]}>
+                          <Text style={[S.pillText, isInProgress ? { color: "#38bdf8" } : S.pillGreenText]}>
+                            {getStatusLabel(p.status)}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={{ fontSize: 12, color: C.accent, fontWeight: "600" }}>Ver →</Text>
+                    </View>
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: C.text, marginBottom: 2 }}>{p.club}</Text>
+                    <Text style={{ fontSize: 12, color: C.text2 }}>
+                      {parseMatchDate(p.match_date)} · {parseMatchTime(p.match_time)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </>
+          )}
+
+          {/* ── Partidos abiertos ───────────────────────────────────── */}
+          <Text style={[S.sectionLabel, { marginBottom: 10, marginTop: misPartidos.length > 0 ? 8 : 0 }]}>
+            Partidos abiertos
+          </Text>
+
           {/* Loading inicial */}
           {loading && partidos.length === 0 && (
-            <View style={{ alignItems: "center", marginTop: 60 }}>
+            <View style={{ alignItems: "center", marginTop: 40 }}>
               <ActivityIndicator color={C.accent} size="large" />
               <Text style={{ color: C.text2, fontSize: 13, marginTop: 12 }}>Buscando partidos...</Text>
             </View>
@@ -126,7 +202,7 @@ export default function PartidosScreen() {
 
           {/* Sin partidos */}
           {!loading && partidos.length === 0 && (
-            <View style={[S.card, { alignItems: "center", padding: 32, marginTop: 20 }]}>
+            <View style={[S.card, { alignItems: "center", padding: 32, marginTop: 4 }]}>
               <Text style={{ fontSize: 36, marginBottom: 12 }}>🎾</Text>
               <Text style={{ fontSize: 15, fontWeight: "700", color: C.text, marginBottom: 6 }}>
                 No hay partidos abiertos
@@ -140,7 +216,7 @@ export default function PartidosScreen() {
             </View>
           )}
 
-          {/* Lista de partidos */}
+          {/* Lista de partidos abiertos */}
           {partidos.map((p) => {
             const isJoined    = !!user && p.players.some(pl => pl.id === user.id);
             const isOrganizer = p.organizer?.id === user?.id;
@@ -198,8 +274,7 @@ export default function PartidosScreen() {
                 {/* Organizador */}
                 {p.organizer && (
                   <Text style={{ fontSize: 11, color: C.text2, marginBottom: 12 }}>
-                    Organiza: {p.organizer.name}
-                    {p.organizer.level ? ` · ${p.organizer.level}` : ""}
+                    Organiza: {p.organizer.name}{p.organizer.level ? ` · ${p.organizer.level}` : ""}
                   </Text>
                 )}
 
@@ -276,12 +351,11 @@ export default function PartidosScreen() {
         </View>
       ) : null}
 
-      {/* ── Modal invitar jugador ─────────────────────────────────────────────── */}
+      {/* ── Modal invitar jugador ──────────────────────────────────────── */}
       <Modal visible={!!inviteMatchId} transparent animationType="slide">
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
           <View style={{ backgroundColor: C.bg3, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderTopColor: C.border, maxHeight: "75%" }}>
 
-            {/* Cabecera modal */}
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border }}>
               <Text style={{ fontSize: 16, fontWeight: "700", color: C.text }}>Invitar jugador</Text>
               <TouchableOpacity
@@ -292,7 +366,6 @@ export default function PartidosScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Buscador */}
             <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
               <TextInput
                 style={[S.input, { marginBottom: 0 }]}
@@ -304,7 +377,6 @@ export default function PartidosScreen() {
               />
             </View>
 
-            {/* Lista usuarios */}
             {loadingUsers ? (
               <View style={{ alignItems: "center", padding: 32 }}>
                 <ActivityIndicator color={C.accent} />

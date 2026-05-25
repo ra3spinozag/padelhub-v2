@@ -1,16 +1,50 @@
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
+import { getInitials } from "../../context/PartidosContext";
 import { C, S } from "../../theme";
 
 const MMR_EVOLUCION = [980, 1020, 1005, 1080, 1120, 1190, 1248];
 const SEMANAS       = ["S1","S2","S3","S4","S5","S6","S7"];
 
-const PARTIDOS_MOCK: Record<number, { rival: string; resultado: string; mmr: number; win: boolean }[]> = {
-  1: [
-    { rival: "Pedro Rojas",  resultado: "6-3 / 6-4", mmr: +18, win: true  },
-    { rival: "Luis Vera",    resultado: "7-5 / 6-2", mmr: +22, win: true  },
-    { rival: "Andrés Silva", resultado: "3-6 / 4-6", mmr: -14, win: false },
+// Demo de historial usando la estructura del backend (match_results + mmr_history)
+const HISTORIAL_DEMO: Record<string, {
+  id: string;
+  club: string;
+  format: "doubles" | "singles";
+  match_date: string;
+  match_results: { score_team_a: string; score_team_b: string; winner: "team_a" | "team_b" };
+  mmr_history: { delta: number; mmr_before: number; mmr_after: number };
+  myTeam: "team_a" | "team_b";
+}[]> = {
+  "e8a1b3c4-ad56-4d23-9871-bcde12345678": [
+    {
+      id: "match-hist-001",
+      club: "Club Pádel Viña del Mar",
+      format: "doubles",
+      match_date: "2026-05-18T00:00:00.000Z",
+      match_results: { score_team_a: "6-3 / 6-4", score_team_b: "3-6 / 4-6", winner: "team_a" },
+      mmr_history: { delta: 18, mmr_before: 1230, mmr_after: 1248 },
+      myTeam: "team_a",
+    },
+    {
+      id: "match-hist-002",
+      club: "BluePadel",
+      format: "doubles",
+      match_date: "2026-05-16T00:00:00.000Z",
+      match_results: { score_team_a: "7-5 / 6-2", score_team_b: "5-7 / 2-6", winner: "team_a" },
+      mmr_history: { delta: 22, mmr_before: 1208, mmr_after: 1230 },
+      myTeam: "team_a",
+    },
+    {
+      id: "match-hist-003",
+      club: "Viña Pádel Club",
+      format: "doubles",
+      match_date: "2026-05-14T00:00:00.000Z",
+      match_results: { score_team_a: "3-6 / 4-6", score_team_b: "6-3 / 6-4", winner: "team_b" },
+      mmr_history: { delta: -14, mmr_before: 1222, mmr_after: 1208 },
+      myTeam: "team_a",
+    },
   ],
 };
 
@@ -18,13 +52,10 @@ export default function PerfilScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
-  const initiales = user?.nombre
-    ? user.nombre.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
-    : "?";
-
-  const partidos     = user?.id ? (PARTIDOS_MOCK[user.id] ?? []) : [];
-  const numPartidos  = partidos.length;
-  const victorias    = partidos.filter((p) => p.win).length;
+  const initiales    = user?.name ? getInitials(user.name) : "?";
+  const historial    = user?.id ? (HISTORIAL_DEMO[user.id] ?? []) : [];
+  const numPartidos  = historial.length;
+  const victorias    = historial.filter((p) => p.match_results.winner === p.myTeam).length;
   const pctVictorias = numPartidos > 0 ? Math.round((victorias / numPartidos) * 100) : 0;
   const esNuevo      = numPartidos === 0;
   const maxMMR       = Math.max(...MMR_EVOLUCION);
@@ -61,14 +92,14 @@ export default function PerfilScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 18, fontWeight: "800", color: C.text, textTransform: "uppercase", lineHeight: 22, marginBottom: 6 }}>
-                {user?.nombre ?? "Usuario"}
+                {user?.name ?? "Usuario"}
               </Text>
               <Text style={{ fontSize: 13, color: C.text2, marginBottom: 8 }}>
-                {user?.zona && user?.edad ? `${user.zona} · ${user.edad} años` : user?.zona ?? "—"}
+                {user?.zone ?? "—"}
               </Text>
               <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
-                {user?.nivel
-                  ? <View style={[S.pill, S.pillPurple]}><Text style={[S.pillText, S.pillPurpleText]}>{user.nivel}{user.categoria ? ` · ${user.categoria}` : ""}</Text></View>
+                {user?.level
+                  ? <View style={[S.pill, S.pillPurple]}><Text style={[S.pillText, S.pillPurpleText]}>{user.level}</Text></View>
                   : <View style={[S.pill, S.pillGray]}><Text style={[S.pillText, S.pillGrayText]}>Sin categoría aún</Text></View>
                 }
                 {!esNuevo && (
@@ -79,7 +110,7 @@ export default function PerfilScreen() {
           </View>
 
           {/* Datos adicionales */}
-          <TouchableOpacity onPress={() => router.push("/(app)/perfil-editar")} style={{ alignSelf: "flex-end", marginBottom: 14 }}>
+          <TouchableOpacity onPress={() => router.push("/(app)/perfil-editar" as any)} style={{ alignSelf: "flex-end", marginBottom: 14 }}>
             <Text style={{ fontSize: 13, color: C.accent, textDecorationLine: "underline" }}>Datos adicionales →</Text>
           </TouchableOpacity>
 
@@ -89,7 +120,7 @@ export default function PerfilScreen() {
               <Text style={{ fontSize: 11, color: C.text2, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>MMR</Text>
               <Text style={S.mmrNum}>{user?.mmr ?? 1000}</Text>
               <Text style={{ fontSize: 12, color: C.text2, marginTop: 4 }}>
-                {esNuevo ? "Juega partidos para obtener ranking" : `#14 en ${user?.zona ?? "tu zona"}`}
+                {esNuevo ? "Juega partidos para obtener ranking" : `#14 en ${user?.zone ?? "tu zona"}`}
               </Text>
             </View>
             {!esNuevo && (
@@ -156,27 +187,34 @@ export default function PerfilScreen() {
             </View>
           ) : (
             <View style={[S.card, { marginBottom: 8 }]}>
-              {partidos.map((p, i) => (
-                <View key={i} style={{
-                  flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                  paddingVertical: 12,
-                  borderBottomWidth: i < partidos.length - 1 ? 1 : 0,
-                  borderBottomColor: C.border,
-                }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: p.win ? C.green : C.red }} />
-                    <View>
-                      <Text style={{ fontSize: 14, fontWeight: "600", color: C.text }}>vs. {p.rival}</Text>
-                      <Text style={{ fontSize: 12, color: C.text2 }}>{p.resultado}</Text>
+              {historial.map((p, i) => {
+                const win   = p.match_results.winner === p.myTeam;
+                const score = win ? p.match_results.score_team_a : p.match_results.score_team_b;
+                const delta = p.mmr_history.delta;
+                return (
+                  <View key={p.id} style={{
+                    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                    paddingVertical: 12,
+                    borderBottomWidth: i < historial.length - 1 ? 1 : 0,
+                    borderBottomColor: C.border,
+                  }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: win ? C.green : C.red }} />
+                      <View>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: C.text }}>
+                          {win ? "Victoria" : "Derrota"} · {p.club}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: C.text2 }}>{score}</Text>
+                      </View>
+                    </View>
+                    <View style={[S.pill, win ? S.pillGreen : S.pillRed]}>
+                      <Text style={[S.pillText, win ? S.pillGreenText : S.pillRedText]}>
+                        {delta > 0 ? `+${delta}` : delta}
+                      </Text>
                     </View>
                   </View>
-                  <View style={[S.pill, p.win ? S.pillGreen : S.pillRed]}>
-                    <Text style={[S.pillText, p.win ? S.pillGreenText : S.pillRedText]}>
-                      {p.mmr > 0 ? `+${p.mmr}` : p.mmr}
-                    </Text>
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
 

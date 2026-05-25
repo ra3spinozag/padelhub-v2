@@ -1,11 +1,14 @@
-import { useState, useEffect } from "react";
-import {
-  View, Text, ScrollView, TouchableOpacity,
-  Modal, ActivityIndicator,
-} from "react-native";
 import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useAuth } from "../../context/AuthContext";
-import { usePartidos, type Jugador } from "../../context/PartidosContext";
+import { getAvatarColor, getInitials, usePartidos } from "../../context/PartidosContext";
 import { C, S } from "../../theme";
 
 const CLUBS = [
@@ -34,11 +37,20 @@ function getTimeSlots(abre: string, cierra: string): string[] {
   return slots;
 }
 
-const JUGADORES_MOCK = [
-  { id: 2, ini: "MR", nombre: "Miguel R.",  color: "#059669" },
-  { id: 3, ini: "AP", nombre: "Ana P.",     color: "#d97706" },
-  { id: 4, ini: "JV", nombre: "Javier V.",  color: "#7c3aed" },
-  { id: 5, ini: "RP", nombre: "Roberto P.", color: "#db2777" },
+// Jugadores disponibles para invitar (en producción vendrían del API)
+type PickerPlayer = {
+  id: string;
+  name: string;
+  level: string;
+  mmr: number;
+  zone: string;
+};
+
+const JUGADORES_MOCK: PickerPlayer[] = [
+  { id: "mock-player-002", name: "Miguel Ríos",   level: "4ta", mmr: 1261, zone: "Viña del Mar" },
+  { id: "mock-player-003", name: "Ana Paredes",   level: "4ta", mmr: 1195, zone: "Valparaíso"   },
+  { id: "mock-player-004", name: "Javier Vega",   level: "3ra", mmr: 1219, zone: "Quilpué"      },
+  { id: "mock-player-005", name: "Roberto Pino",  level: "5ta", mmr: 1311, zone: "Concón"       },
 ];
 
 export default function CrearScreen() {
@@ -60,15 +72,14 @@ export default function CrearScreen() {
   const [selectedTime,  setSelectedTime]  = useState("");
   const [showTime,      setShowTime]      = useState(false);
 
-  const [formato,       setFormato]       = useState<"dobles"|"individual">("dobles");
-  const [jugadores,     setJugadores]     = useState<(typeof JUGADORES_MOCK[0]|null)[]>([null,null,null]);
+  const [formato,       setFormato]       = useState<"doubles"|"singles">("doubles");
+  const [jugadores,     setJugadores]     = useState<(PickerPlayer|null)[]>([null,null,null]);
   const [showPickerIdx, setShowPickerIdx] = useState<number|null>(null);
   const [notif,         setNotif]         = useState<"whatsapp"|"push">("whatsapp");
   const [toast,         setToast]         = useState("");
+  const [submitting,    setSubmitting]    = useState(false);
 
-  const initiales = user?.nombre
-    ? user.nombre.split(" ").map((n) => n[0]).slice(0,2).join("").toUpperCase()
-    : "?";
+  const initiales = user?.name ? getInitials(user.name) : "?";
 
   useEffect(() => {
     if (!selectedClub) return;
@@ -82,10 +93,10 @@ export default function CrearScreen() {
     setSelectedTime(filtered[0] ?? "");
   }, [selectedClub, selectedDate]);
 
-  const numSlots = formato === "dobles" ? 3 : 1;
+  const numSlots = formato === "doubles" ? 3 : 1;
   const slots    = jugadores.slice(0, numSlots);
 
-  const toggleJugador = (idx: number, j: typeof JUGADORES_MOCK[0]|null) => {
+  const toggleJugador = (idx: number, j: PickerPlayer|null) => {
     const next = [...jugadores];
     next[idx] = next[idx]?.id === j?.id ? null : j;
     setJugadores(next);
@@ -98,24 +109,60 @@ export default function CrearScreen() {
 
   const showToastMsg = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
 
-  const handleCrear = () => {
+  const handleCrear = async () => {
     if (!selectedClub) { showToastMsg("Selecciona un club"); return; }
     if (!selectedTime) { showToastMsg("Selecciona una hora"); return; }
 
-    const jugadoresPartido: Jugador[] = [
-      { ini: initiales, nombre: user?.nombre?.split(" ")[0] ?? "Tú", color: C.accent },
-      ...slots.filter(Boolean).map((j) => ({ ini: j!.ini, nombre: j!.nombre, color: j!.color })),
-    ];
+    const now = new Date().toISOString();
+    const [hh, mm] = selectedTime.split(":");
+    const matchTime = `1970-01-01T${hh}:${mm}:00.000Z`;
 
-    agregarPartido({
-      fecha: selectedDate, fechaStr: formatDateStr(selectedDate),
-      hora: selectedTime, club: selectedClub.nombre, cancha: "",
-      formato, jugadores: jugadoresPartido, notif, estado: "Confirmado",
-    });
+    const myPlayer = {
+      id: `mp-local-0`,
+      team: "team_a" as const,
+      status: "confirmed" as const,
+      joined_at: now,
+      users: {
+        id: user?.id ?? "local-user",
+        name: user?.name ?? "Tú",
+        level: user?.level ?? "",
+        mmr: user?.mmr ?? 1000,
+      },
+    };
 
-    const medio = notif === "whatsapp" ? "WhatsApp" : "Push";
-    showToastMsg(`¡Partido creado! Notificación enviada por ${medio}`);
-    setTimeout(() => router.replace("/(app)/home"), 1500);
+    const otherPlayers = slots.filter(Boolean).map((j, idx) => ({
+      id: `mp-local-${idx + 1}`,
+      team: (idx < (formato === "doubles" ? 1 : 0) ? "team_a" : "team_b") as "team_a" | "team_b",
+      status: "confirmed" as const,
+      joined_at: now,
+      users: {
+        id: j!.id,
+        name: j!.name,
+        level: j!.level,
+        mmr: j!.mmr,
+      },
+    }));
+
+    setSubmitting(true);
+    try {
+      await agregarPartido({
+        club: selectedClub.nombre,
+        format: formato,
+        status: "open",
+        match_date: selectedDate.toISOString(),
+        match_time: matchTime,
+        created_at: now,
+        organizer: { id: user?.id ?? "local-user", name: user?.name ?? "Tú" },
+        match_players: [myPlayer, ...otherPlayers],
+      });
+      const medio = notif === "whatsapp" ? "WhatsApp" : "Push";
+      showToastMsg(`¡Partido creado! Notificación enviada por ${medio}`);
+      setTimeout(() => router.replace("/(app)/home"), 1500);
+    } catch {
+      showToastMsg("Error al crear el partido. Intenta de nuevo.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const { firstDay, daysInMonth } = getDaysInMonth(calYear, calMonth);
@@ -242,13 +289,13 @@ export default function CrearScreen() {
           <View style={{ marginBottom:14 }}>
             <Text style={S.label}>Formato</Text>
             <View style={{ flexDirection:"row", gap:10 }}>
-              {(["dobles","individual"] as const).map(f=>(
+              {(["doubles","singles"] as const).map(f=>(
                 <TouchableOpacity key={f}
                   onPress={()=>{setFormato(f);setJugadores([null,null,null]);}}
                   style={[S.formatOpt, formato===f && S.formatOptSelected]}>
-                  <Text style={{ fontSize:22, marginBottom:4 }}>{f==="dobles"?"👥":"🧍"}</Text>
-                  <Text style={{ fontSize:14, fontWeight:"700", color:C.text }}>{f==="dobles"?"Dobles":"Individual"}</Text>
-                  <Text style={{ fontSize:12, color:C.text2 }}>{f==="dobles"?"2 vs 2":"1 vs 1"}</Text>
+                  <Text style={{ fontSize:22, marginBottom:4 }}>{f==="doubles"?"👥":"🧍"}</Text>
+                  <Text style={{ fontSize:14, fontWeight:"700", color:C.text }}>{f==="doubles"?"Dobles":"Individual"}</Text>
+                  <Text style={{ fontSize:12, color:C.text2 }}>{f==="doubles"?"2 vs 2":"1 vs 1"}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -274,10 +321,10 @@ export default function CrearScreen() {
                   >
                     {j ? (
                       <>
-                        <View style={[S.avatar, { width:36, height:36, backgroundColor:j.color }]}>
-                          <Text style={[S.avatarText, { fontSize:13 }]}>{j.ini}</Text>
+                        <View style={[S.avatar, { width:36, height:36, backgroundColor:getAvatarColor(idx+1) }]}>
+                          <Text style={[S.avatarText, { fontSize:13 }]}>{getInitials(j.name)}</Text>
                         </View>
-                        <Text style={{ fontSize:11, color:C.text2 }}>{j.nombre.split(" ")[0]}</Text>
+                        <Text style={{ fontSize:11, color:C.text2 }}>{j.name.split(" ")[0]}</Text>
                       </>
                     ) : (
                       <>
@@ -290,14 +337,14 @@ export default function CrearScreen() {
                   {/* Picker jugadores */}
                   {showPickerIdx===idx && (
                     <View style={{ position:"absolute", top:72, left:0, zIndex:10, backgroundColor:C.bg3, borderWidth:1, borderColor:C.border, borderRadius:12, minWidth:160, overflow:"hidden" }}>
-                      {JUGADORES_MOCK.filter(jm=>!slots.some((s,si)=>si!==idx&&s?.id===jm.id)).map(jm=>(
+                      {JUGADORES_MOCK.filter(jm=>!slots.some((s,si)=>si!==idx&&s?.id===jm.id)).map((jm, jmIdx)=>(
                         <TouchableOpacity key={jm.id} onPress={()=>toggleJugador(idx,jm)}
                           style={{ padding:12, borderBottomWidth:1, borderBottomColor:C.border, flexDirection:"row", alignItems:"center", gap:8,
                             backgroundColor:slots[idx]?.id===jm.id?"rgba(79,70,229,0.1)":"transparent" }}>
-                          <View style={[S.avatar, { width:28, height:28, backgroundColor:jm.color }]}>
-                            <Text style={[S.avatarText, { fontSize:11 }]}>{jm.ini}</Text>
+                          <View style={[S.avatar, { width:28, height:28, backgroundColor:getAvatarColor(jmIdx+1) }]}>
+                            <Text style={[S.avatarText, { fontSize:11 }]}>{getInitials(jm.name)}</Text>
                           </View>
-                          <Text style={{ color:C.text, fontSize:13 }}>{jm.nombre}</Text>
+                          <Text style={{ color:C.text, fontSize:13 }}>{jm.name}</Text>
                         </TouchableOpacity>
                       ))}
                       {j && (
@@ -328,8 +375,10 @@ export default function CrearScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={S.btn} onPress={handleCrear}>
-            <Text style={S.btnText}>Crear y notificar</Text>
+          <TouchableOpacity style={[S.btn, submitting && S.btnDisabled]} onPress={handleCrear} disabled={submitting}>
+            {submitting
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={S.btnText}>Crear y notificar</Text>}
           </TouchableOpacity>
 
         </View>

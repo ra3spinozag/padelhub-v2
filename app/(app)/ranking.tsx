@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Modal } from "react-native";
 import { useRouter } from "expo-router";
+import { useState } from "react";
+import { Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import { C, S } from "../../theme";
 
@@ -24,7 +24,7 @@ const MEDAL = ["🥇", "🥈", "🥉"];
 export default function RankingScreen() {
   const { user } = useAuth();
   const router   = useRouter();
-  const [zona,      setZona]      = useState(user?.zona ?? "Valparaíso");
+  const [zona,      setZona]      = useState(user?.zone ?? "Valparaíso");
   const [showZonas, setShowZonas] = useState(false);
 
   const podio = RANKING_DATA.slice(0, 3);

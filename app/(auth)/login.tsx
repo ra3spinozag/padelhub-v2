@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity,
-  ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ScrollView,
+  Text, TextInput, TouchableOpacity,
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 import { forgotPassword, resetPassword } from "../../services/auth.mock";
 import { C, S } from "../../theme";
@@ -11,13 +13,14 @@ import { C, S } from "../../theme";
 export default function LoginScreen() {
   const { isLogged, loading, login } = useAuth();
   const router = useRouter();
+  const params = useLocalSearchParams<{ rut?: string }>();
 
-  const [tel,        setTel]        = useState("+56987654321");
-  const [pass,       setPass]       = useState("12345678");
+  const [rut,        setRut]        = useState(params.rut ?? "");
+  const [pass,       setPass]       = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState("");
   const [showForgot, setShowForgot] = useState(false);
-  const [telFocused, setTelFocused] = useState(false);
+  const [rutFocused, setRutFocused] = useState(false);
   const [passFocused,setPassFocused]= useState(false);
 
   useEffect(() => {
@@ -26,11 +29,16 @@ export default function LoginScreen() {
 
   const handleSubmit = async () => {
     setError("");
+    const rutNum = Number(rut.trim());
+    if (!rut.trim() || isNaN(rutNum) || rutNum <= 0) {
+      setError("Ingresa un RUT válido (solo números, sin dígito verificador).");
+      return;
+    }
     setSubmitting(true);
     try {
-      await login(tel, pass);
-    } catch {
-      setError("Teléfono o contraseña inválidos. Intenta nuevamente o regístrate.");
+      await login(rutNum, pass);
+    } catch (e: any) {
+      setError(e?.message ?? "RUT o contraseña inválidos. Intenta nuevamente.");
     } finally {
       setSubmitting(false);
     }
@@ -93,19 +101,19 @@ export default function LoginScreen() {
           </View>
         ) : null}
 
-        {/* Teléfono */}
+        {/* RUT */}
         <View style={S.inputGroup}>
-          <Text style={S.label}>Teléfono</Text>
+          <Text style={S.label}>RUT (sin dígito verificador)</Text>
           <TextInput
-            style={[S.input, telFocused && S.inputFocused]}
-            placeholder="+56 9 1234 5678"
+            style={[S.input, rutFocused && S.inputFocused]}
+            placeholder="12345678"
             placeholderTextColor={C.text2}
-            value={tel}
-            onChangeText={setTel}
-            keyboardType="phone-pad"
-            autoComplete="tel"
-            onFocus={() => setTelFocused(true)}
-            onBlur={() => setTelFocused(false)}
+            value={rut}
+            onChangeText={(v) => setRut(v.replace(/\D/g, ""))}
+            keyboardType="number-pad"
+            maxLength={8}
+            onFocus={() => setRutFocused(true)}
+            onBlur={() => setRutFocused(false)}
           />
         </View>
 
@@ -161,7 +169,7 @@ export default function LoginScreen() {
   );
 }
 
-// ── Recuperar contraseña ──────────────────────────────────────────────────────
+// ── Recuperar contraseña (mock) ───────────────────────────────────────────────
 function ForgotPasswordScreen({ onBack }: { onBack: () => void }) {
   const [step,      setStep]      = useState<1 | 2 | 3 | "done">(1);
   const [tel,       setTel]       = useState("");

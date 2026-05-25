@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
+import { useState } from "react";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import { C, S } from "../../theme";
 
@@ -50,7 +50,7 @@ export default function MatchmakingScreen() {
           </TouchableOpacity>
           <View style={{ alignItems: "center" }}>
             <Text style={{ fontSize: 18, fontWeight: "700", color: C.text }}>Matchmaking</Text>
-            <Text style={{ fontSize: 12, color: C.text2 }}>MMR ±150 · {user?.zona ?? "tu zona"}</Text>
+            <Text style={{ fontSize: 12, color: C.text2 }}>MMR ±150 · {user?.zone ?? "tu zona"}</Text>
           </View>
           <TouchableOpacity style={{ backgroundColor: C.bg3, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 12 }}>
             <Text style={{ fontSize: 12, color: C.text2 }}>Filtrar</Text>

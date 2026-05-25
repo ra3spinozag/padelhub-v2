@@ -1,151 +1,22 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-export interface User {
-  id: number;
-  nombre: string;
-  telefono: string;
-  nivel: string | null;
-  categoria: string | null;
-  zona: string | null;
-  edad: number | null;
-  mmr: number;
-  foto: string | null;
-}
-
-const MOCK_USERS: (User & { password: string; token: string })[] = [
-  {
-    id: 1,
-    nombre: "Felipe Martínez",
-    telefono: "+56987654321",
-    password: "12345678",
-    nivel: "Intermedio",
-    categoria: "4ª",
-    zona: "Valparaíso",
-    edad: 24,
-    mmr: 1248,
-    foto: null,
-    token: "mock-jwt-token-felipe-abc123",
-  },
-];
+// Mock-only helpers kept for the ForgotPassword flow (no real endpoint yet)
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// ── HU-002: Login ──────────────────────────────────────────────────────────────
-export async function loginUser(
-  telefono: string,
-  password: string
-): Promise<{ token: string; user: User }> {
-  await delay(800);
-  const found = MOCK_USERS.find(
-    (u) => u.telefono === telefono && u.password === password
-  );
-  if (!found) throw new Error("Teléfono o contraseña incorrectos");
-  const { password: _, token, ...user } = found;
-  await AsyncStorage.setItem("ph_token", token);
-  await AsyncStorage.setItem("ph_user", JSON.stringify(user));
-  return { token, user };
-}
+// Minimal local store for the forgot-password dev flow
+const _mockPhones = new Set(["+56987654321"]);
 
-// ── HU-001a: Solo registrar (sin iniciar sesión) ───────────────────────────────
-export async function signUpUser(data: {
-  nombre: string;
-  telefono: string;
-  password: string;
-}): Promise<void> {
-  await delay(1000);
-  if (MOCK_USERS.find((u) => u.telefono === data.telefono)) {
-    throw new Error("Este número ya está registrado");
-  }
-  const token = `mock-jwt-${Date.now()}`;
-  const user: User = {
-    id: MOCK_USERS.length + 1,
-    nombre:    data.nombre,
-    telefono:  data.telefono,
-    nivel:     null,
-    categoria: null,
-    zona:      null,
-    edad:      null,
-    mmr:       1000,
-    foto:      null,
-  };
-  MOCK_USERS.push({ ...user, password: data.password, token });
-}
-
-// ── HU-001b: Registro + login automático ──────────────────────────────────────
-export async function registerUser(data: {
-  nombre: string;
-  telefono: string;
-  password: string;
-}): Promise<{ token: string; user: User }> {
-  await delay(1000);
-  if (MOCK_USERS.find((u) => u.telefono === data.telefono)) {
-    throw new Error("Este número ya está registrado");
-  }
-  const token = `mock-jwt-${Date.now()}`;
-  const user: User = {
-    id: MOCK_USERS.length + 1,
-    nombre:    data.nombre,
-    telefono:  data.telefono,
-    nivel:     null,
-    categoria: null,
-    zona:      null,
-    edad:      null,
-    mmr:       1000,
-    foto:      null,
-  };
-  MOCK_USERS.push({ ...user, password: data.password, token });
-  await AsyncStorage.setItem("ph_token", token);
-  await AsyncStorage.setItem("ph_user", JSON.stringify(user));
-  return { token, user };
-}
-
-// ── HU-003: Editar perfil ──────────────────────────────────────────────────────
-export async function updateProfile(
-  userId: number,
-  data: Partial<User>
-): Promise<User> {
-  await delay(700);
-  const i = MOCK_USERS.findIndex((u) => u.id === userId);
-  if (i === -1) throw new Error("Usuario no encontrado");
-  Object.assign(MOCK_USERS[i], data);
-  const { password: _, token: __, ...user } = MOCK_USERS[i];
-  await AsyncStorage.setItem("ph_user", JSON.stringify(user));
-  return user;
-}
-
-// ── HU-004: Logout ─────────────────────────────────────────────────────────────
-export async function logoutUser(): Promise<void> {
-  await delay(200);
-  await AsyncStorage.removeItem("ph_token");
-  await AsyncStorage.removeItem("ph_user");
-}
-
-// ── HU-005: Recuperar contraseña ───────────────────────────────────────────────
-export async function forgotPassword(telefono: string): Promise<void> {
+// ── HU-005: Recuperar contraseña (mock) ───────────────────────────────────────
+export async function forgotPassword(phone: string): Promise<void> {
   await delay(1200);
-  if (!MOCK_USERS.find((u) => u.telefono === telefono)) {
+  if (!_mockPhones.has(phone)) {
     throw new Error("No existe una cuenta con ese número");
   }
-  console.log(`[MOCK] OTP enviado a ${telefono}: 123456`);
+  console.log(`[MOCK] OTP enviado a ${phone}: 123456`);
 }
 
 export async function resetPassword(
-  telefono: string,
-  newPassword: string
+  _phone: string,
+  _newPassword: string
 ): Promise<void> {
   await delay(800);
-  const user = MOCK_USERS.find((u) => u.telefono === telefono);
-  if (!user) throw new Error("Usuario no encontrado");
-  user.password = newPassword;
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-export async function getStoredUser(): Promise<User | null> {
-  const raw = await AsyncStorage.getItem("ph_user");
-  return raw ? JSON.parse(raw) : null;
-}
-
-export async function isAuthenticated(): Promise<boolean> {
-  const token = await AsyncStorage.getItem("ph_token");
-  return !!token;
 }

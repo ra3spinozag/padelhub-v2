@@ -1,58 +1,43 @@
+import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import {
   getAvatarColor, getFormatoLabel, getInitials, getStatusLabel, parseMatchDate,
-  parseMatchTime, usePartidos
+  parseMatchTime, usePartidos, type Partido
 } from "../../context/PartidosContext";
+import { listMatches } from "../../services/matches.service";
 import { C, S } from "../../theme";
-
-// Demo de actividad reciente usando la estructura del backend
-const ACTIVIDAD_DEMO: Record<string, {
-  club: string;
-  match_date: string;
-  match_results: { score_team_a: string; score_team_b: string; winner: "team_a" | "team_b" };
-  mmr_history: { delta: number };
-  myTeam: "team_a" | "team_b";
-  hace: string;
-}[]> = {
-  "e8a1b3c4-ad56-4d23-9871-bcde12345678": [
-    {
-      club: "Club Pádel Viña del Mar",
-      match_date: "2026-05-18T00:00:00.000Z",
-      match_results: { score_team_a: "6-3 / 6-4", score_team_b: "3-6 / 4-6", winner: "team_a" },
-      mmr_history: { delta: 18 },
-      myTeam: "team_a",
-      hace: "Hace 3 días",
-    },
-    {
-      club: "BluePadel",
-      match_date: "2026-05-16T00:00:00.000Z",
-      match_results: { score_team_a: "7-5 / 6-2", score_team_b: "5-7 / 2-6", winner: "team_a" },
-      mmr_history: { delta: 22 },
-      myTeam: "team_a",
-      hace: "Hace 5 días",
-    },
-    {
-      club: "Viña Pádel Club",
-      match_date: "2026-05-14T00:00:00.000Z",
-      match_results: { score_team_a: "3-6 / 4-6", score_team_b: "6-3 / 6-4", winner: "team_b" },
-      mmr_history: { delta: -14 },
-      myTeam: "team_a",
-      hace: "Hace 7 días",
-    },
-  ],
-};
 
 export default function HomeScreen() {
   const { user, logout } = useAuth();
   const { partidos }     = usePartidos();
   const router           = useRouter();
+  const [misActivos, setMisActivos] = useState<Partido[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      try {
+        const [inProgress, confirmed] = await Promise.all([
+          listMatches({ zone: user.zone ?? undefined, status: "in_progress" }),
+          listMatches({ zone: user.zone ?? undefined, status: "confirmed" }),
+        ]);
+        const all = [...inProgress, ...confirmed];
+        setMisActivos(all.filter(m =>
+          m.players.some(p => p.id === user.id) || m.organizer?.id === user.id
+        ));
+      } catch {
+        // keep existing state
+      }
+    })();
+  }, [user?.id, user?.zone]);
 
   const initiales      = user?.name ? getInitials(user.name) : "?";
-  const proximoPartido = partidos.find(p => p.players.some(pl => pl.id === user?.id)) ?? null;
-  const actividad      = user?.id ? (ACTIVIDAD_DEMO[user.id] ?? []) : [];
-  const esNuevo        = actividad.length === 0;
+  const proximoPartido: Partido | null =
+    misActivos[0] ??
+    partidos.find(p => p.players.some(pl => pl.id === user?.id)) ??
+    null;
 
   const handleLogout = async () => {
     await logout();
@@ -87,12 +72,9 @@ export default function HomeScreen() {
             <Text style={{ fontSize: 11, color: C.text2, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>Tu MMR</Text>
             <Text style={S.mmrNum}>{user?.mmr ?? 1000}</Text>
             <Text style={{ fontSize: 12, color: C.text2, marginTop: 4 }}>
-              {esNuevo ? "Juega partidos para obtener ranking" : `#14 en ${user?.zone ?? "tu zona"}`}
+              Juega partidos para obtener ranking
             </Text>
           </View>
-          {!esNuevo && (
-            <Text style={{ fontSize: 12, color: "#4ade80", fontWeight: "600" }}>▲ +127 este mes</Text>
-          )}
         </View>
 
         {/* Próximo partido */}
@@ -158,44 +140,11 @@ export default function HomeScreen() {
 
         {/* Actividad reciente */}
         <Text style={S.sectionLabel}>Actividad reciente</Text>
-        {esNuevo ? (
-          <View style={[S.card, { alignItems: "center", padding: 24, marginBottom: 24 }]}>
-            <Text style={{ fontSize: 28, marginBottom: 8 }}>📋</Text>
-            <Text style={{ fontSize: 14, fontWeight: "600", color: C.text, marginBottom: 4 }}>Sin actividad aún</Text>
-            <Text style={{ fontSize: 12, color: C.text2 }}>Tus partidos jugados aparecerán aquí</Text>
-          </View>
-        ) : (
-          <View style={[S.card, { marginBottom: 24 }]}>
-            {actividad.map((a, i) => {
-              const win   = a.match_results.winner === a.myTeam;
-              const score = win ? a.match_results.score_team_a : a.match_results.score_team_b;
-              const delta = a.mmr_history.delta;
-              return (
-                <View key={i} style={{
-                  flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                  paddingVertical: 12,
-                  borderBottomWidth: i < actividad.length - 1 ? 1 : 0,
-                  borderBottomColor: C.border,
-                }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: win ? C.green : C.red }} />
-                    <View>
-                      <Text style={{ fontSize: 14, fontWeight: "600", color: C.text }}>
-                        {win ? "Victoria" : "Derrota"} · {a.club}
-                      </Text>
-                      <Text style={{ fontSize: 12, color: C.text2 }}>{score} · {a.hace}</Text>
-                    </View>
-                  </View>
-                  <View style={[S.pill, win ? S.pillGreen : S.pillRed]}>
-                    <Text style={[S.pillText, win ? S.pillGreenText : S.pillRedText]}>
-                      {delta > 0 ? `+${delta}` : delta} MMR
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
+        <View style={[S.card, { alignItems: "center", padding: 24, marginBottom: 24 }]}>
+          <Text style={{ fontSize: 28, marginBottom: 8 }}>📋</Text>
+          <Text style={{ fontSize: 14, fontWeight: "600", color: C.text, marginBottom: 4 }}>Sin actividad aún</Text>
+          <Text style={{ fontSize: 12, color: C.text2 }}>Tus partidos jugados aparecerán aquí</Text>
+        </View>
 
         {/* Cerrar sesión */}
         <TouchableOpacity onPress={handleLogout} style={{ alignItems: "center", marginBottom: 16 }}>

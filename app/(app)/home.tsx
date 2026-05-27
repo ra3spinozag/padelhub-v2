@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import {
-  getAvatarColor, getFormatoLabel, getInitials, getStatusLabel, parseMatchDate,
+  getAvatarColor, getFormatoLabel, getStatusLabel, parseMatchDate,
   parseMatchTime, usePartidos, type Partido
 } from "../../context/PartidosContext";
 import { listMatches } from "../../services/matches.service";
 import { C, S } from "../../theme";
+import { UserAvatar } from "../../components/UserAvatar";
 
 export default function HomeScreen() {
   const { user, logout } = useAuth();
@@ -33,7 +34,6 @@ export default function HomeScreen() {
     })();
   }, [user?.id, user?.zone]);
 
-  const initiales      = user?.name ? getInitials(user.name) : "?";
   const proximoPartido: Partido | null =
     misActivos[0] ??
     partidos.find(p => p.players.some(pl => pl.id === user?.id)) ??
@@ -58,11 +58,8 @@ export default function HomeScreen() {
               {user?.zone ? `${user.zone} · ` : ""}MMR {user?.mmr ?? 1000}
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={() => router.push("/(app)/perfil")}
-            style={{ width: 44, height: 44, backgroundColor: C.accent, borderRadius: 14, alignItems: "center", justifyContent: "center" }}
-          >
-            <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>{initiales}</Text>
+          <TouchableOpacity onPress={() => router.push("/(app)/perfil")}>
+            <UserAvatar name={user?.name ?? "?"} photoUrl={user?.photo_url} size={44} borderRadius={14} />
           </TouchableOpacity>
         </View>
 
@@ -103,9 +100,7 @@ export default function HomeScreen() {
                   {proximoPartido.format === "doubles" && i === 2 && (
                     <Text style={{ fontSize: 11, color: C.text2 }}>vs</Text>
                   )}
-                  <View style={[S.avatar, { width: 32, height: 32, backgroundColor: getAvatarColor(i) }]}>
-                    <Text style={[S.avatarText, { fontSize: 12 }]}>{getInitials(mp.name)}</Text>
-                  </View>
+                  <UserAvatar name={mp.name} photoUrl={mp.photo_url} size={32} color={getAvatarColor(i)} />
                 </View>
               ))}
             </View>

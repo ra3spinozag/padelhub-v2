@@ -151,7 +151,7 @@ export default function ForgotPasswordScreen() {
           <TouchableOpacity
             style={[S.backBtn, { marginBottom: 28 }]}
             onPress={() => {
-              if (step === "rut")     router.back();
+              if (step === "rut")     router.canGoBack() ? router.back() : router.replace("/(auth)/login");
               else if (step === "otp")     setStep("rut");
               else if (step === "newpass") setStep("otp");
             }}

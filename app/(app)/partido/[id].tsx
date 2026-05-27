@@ -8,11 +8,12 @@ import {
 import QRCode from "react-native-qrcode-svg";
 import { useAuth } from "../../../context/AuthContext";
 import {
-  getAvatarColor, getFormatoLabel, getInitials, getStatusLabel,
+  getAvatarColor, getFormatoLabel, getStatusLabel,
   parseMatchDate, parseMatchTime,
   type Partido,
 } from "../../../context/PartidosContext";
-import { getMatch, joinMatch, leaveMatch } from "../../../services/matches.service";
+import { UserAvatar } from "../../../components/UserAvatar";
+import { getMatch, joinMatch, leaveMatch, startMatch } from "../../../services/matches.service";
 import {
   confirmPresence, confirmResult, generateQR,
   getResult, submitResult,
@@ -72,8 +73,9 @@ export default function PartidoDetailScreen() {
   const [scoreA,     setScoreA]     = useState("");
   const [scoreB,     setScoreB]     = useState("");
   const [winner,     setWinner]     = useState<"team_a" | "team_b" | "draw" | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting,  setSubmitting]  = useState(false);
   const [confirming2, setConfirming2] = useState(false);
+  const [starting,    setStarting]    = useState(false);
 
   const [toast, setToast] = useState("");
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3500); };
@@ -106,6 +108,8 @@ export default function PartidoDetailScreen() {
   const spotsLeft   = partido
     ? (partido.spots_left ?? Math.max(0, (partido.max_players ?? 4) - partido.players.length))
     : 0;
+
+  const isMatchWindowActive = partido?.match_window?.is_active === true;
 
   const registrarByTeam = resultado
     ? partido?.players.find(p => p.id === resultado.registered_by)?.team
@@ -189,6 +193,17 @@ export default function PartidoDetailScreen() {
     finally { setSubmitting(false); }
   };
 
+  const handleStartMatch = async () => {
+    if (!user?.id || !partido) return;
+    setStarting(true);
+    try {
+      await startMatch(partido.id, user.id);
+      showToast("¡Partido iniciado!");
+      fetchPartido();
+    } catch (e: any) { showToast(e.message ?? "Error al iniciar el partido"); }
+    finally { setStarting(false); }
+  };
+
   const handleConfirmResult = async () => {
     if (!user?.id || !partido) return;
     setConfirming2(true);
@@ -213,7 +228,7 @@ export default function PartidoDetailScreen() {
     return (
       <View style={[S.screen, { alignItems: "center", justifyContent: "center", padding: 24 }]}>
         <Text style={{ color: C.text2, fontSize: 15 }}>No se encontró el partido</Text>
-        <TouchableOpacity style={{ marginTop: 16 }} onPress={() => router.back()}>
+        <TouchableOpacity style={{ marginTop: 16 }} onPress={() => router.canGoBack() ? router.back() : router.replace("/(app)/home")}>
           <Text style={{ color: C.accent, fontSize: 14 }}>Volver</Text>
         </TouchableOpacity>
       </View>
@@ -227,7 +242,7 @@ export default function PartidoDetailScreen() {
 
         {/* Header */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <TouchableOpacity style={S.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={S.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace("/(app)/home")}>
             <Text style={S.backBtnText}>←</Text>
           </TouchableOpacity>
           <Text style={{ fontSize: 17, fontWeight: "700", color: C.text }}>Detalle del partido</Text>
@@ -275,9 +290,7 @@ export default function PartidoDetailScreen() {
                   <Text style={{ fontSize: 11, color: C.text2 }}>Esperando...</Text>
                 ) : players.map((pl, i) => (
                   <View key={pl.id} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: i < players.length - 1 ? 8 : 0 }}>
-                    <View style={[S.avatar, { width: 30, height: 30, backgroundColor: color }]}>
-                      <Text style={[S.avatarText, { fontSize: 10 }]}>{getInitials(pl.name)}</Text>
-                    </View>
+                    <UserAvatar name={pl.name} photoUrl={pl.photo_url} size={30} color={color} borderRadius={10} />
                     <Text style={{ fontSize: 12, fontWeight: "600", color: pl.id === user?.id ? C.accent : C.text }}>
                       {pl.id === user?.id ? "Tú" : pl.name.split(" ")[0]}
                     </Text>
@@ -295,9 +308,7 @@ export default function PartidoDetailScreen() {
                 borderBottomWidth: i < partido.players.length - 1 ? 1 : 0,
                 borderBottomColor: C.border,
               }}>
-                <View style={[S.avatar, { width: 36, height: 36, backgroundColor: getAvatarColor(i) }]}>
-                  <Text style={[S.avatarText, { fontSize: 12 }]}>{getInitials(pl.name)}</Text>
-                </View>
+                <UserAvatar name={pl.name} photoUrl={pl.photo_url} size={36} color={getAvatarColor(i)} />
                 <Text style={{ fontSize: 14, fontWeight: "600", color: pl.id === user?.id ? C.accent : C.text }}>
                   {pl.id === user?.id ? `Tú (${pl.name})` : pl.name}
                 </Text>
@@ -350,6 +361,19 @@ export default function PartidoDetailScreen() {
                   : "El organizador generará un QR. Escanéalo para confirmar tu presencia."}
               </Text>
             </View>
+
+            {isMatchWindowActive && isOrganizer && (
+              <TouchableOpacity
+                style={[S.btn, { backgroundColor: "#059669" }, starting && S.btnDisabled]}
+                onPress={handleStartMatch}
+                disabled={starting}
+              >
+                {starting
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={S.btnText}>Iniciar partido</Text>}
+              </TouchableOpacity>
+            )}
+
             {isOrganizer ? (
               <TouchableOpacity
                 style={[S.btn, generatingQR && S.btnDisabled]}

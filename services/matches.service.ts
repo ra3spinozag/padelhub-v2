@@ -58,3 +58,12 @@ export async function getMatch(matchId: string): Promise<Partido> {
     token ?? undefined
   );
 }
+
+export async function startMatch(matchId: string, userId: string): Promise<{ message: string; match: Partido }> {
+  const token = await getStoredToken();
+  return apiFetch<{ message: string; match: Partido }>(
+    `/matches/${matchId}/start`,
+    { method: "POST", body: JSON.stringify({ user_id: userId }) },
+    token ?? undefined
+  );
+}

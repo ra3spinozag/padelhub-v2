@@ -45,7 +45,7 @@ export default function MatchmakingScreen() {
 
         {/* Header */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 20, paddingBottom: 16 }}>
-          <TouchableOpacity style={S.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={S.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace("/(app)/home")}>
             <Text style={S.backBtnText}>←</Text>
           </TouchableOpacity>
           <View style={{ alignItems: "center" }}>

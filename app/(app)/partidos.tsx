@@ -12,9 +12,10 @@ import {
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import {
-  getAvatarColor, getFormatoLabel, getInitials, getStatusLabel,
+  getAvatarColor, getFormatoLabel, getStatusLabel,
   parseMatchDate, parseMatchTime, usePartidos, type Partido,
 } from "../../context/PartidosContext";
+import { UserAvatar } from "../../components/UserAvatar";
 import { listMatches } from "../../services/matches.service";
 import { listUsers, type PublicUser } from "../../services/auth.service";
 import { sendInvitation } from "../../services/invitations.service";
@@ -136,7 +137,7 @@ export default function PartidosScreen() {
       >
         {/* Header */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 20, paddingBottom: 16 }}>
-          <TouchableOpacity style={S.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={S.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace("/(app)/home")}>
             <Text style={S.backBtnText}>←</Text>
           </TouchableOpacity>
           <View style={{ alignItems: "center" }}>
@@ -253,9 +254,7 @@ export default function PartidosScreen() {
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
                   {p.players.map((pl, i) => (
                     <View key={pl.id} style={{ alignItems: "center", gap: 3 }}>
-                      <View style={[S.avatar, { width: 38, height: 38, backgroundColor: getAvatarColor(i) }]}>
-                        <Text style={[S.avatarText, { fontSize: 13 }]}>{getInitials(pl.name)}</Text>
-                      </View>
+                      <UserAvatar name={pl.name} photoUrl={pl.photo_url} size={38} color={getAvatarColor(i)} />
                       <Text style={{ fontSize: 10, color: pl.id === user?.id ? C.accent : C.text2, fontWeight: pl.id === user?.id ? "700" : "400" }}>
                         {pl.id === user?.id ? "Tú" : pl.name.split(" ")[0]}
                       </Text>
@@ -400,9 +399,7 @@ export default function PartidosScreen() {
                       borderBottomWidth: i < filteredUsers.length - 1 ? 1 : 0,
                       borderBottomColor: C.border,
                     }}>
-                      <View style={[S.avatar, { width: 40, height: 40, backgroundColor: getAvatarColor(i) }]}>
-                        <Text style={[S.avatarText, { fontSize: 14 }]}>{getInitials(u.name)}</Text>
-                      </View>
+                      <UserAvatar name={u.name} photoUrl={u.photo_url} size={40} color={getAvatarColor(i)} />
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 14, fontWeight: "600", color: C.text }}>{u.name}</Text>
                         <Text style={{ fontSize: 12, color: C.text2 }}>

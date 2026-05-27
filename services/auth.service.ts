@@ -71,6 +71,23 @@ export async function updateProfile(
   return updated;
 }
 
+async function buildPhotoForm(imageUri: string): Promise<FormData> {
+  const form = new FormData();
+  const ext      = imageUri.split(".").pop()?.toLowerCase() ?? "jpg";
+  const mimeType = `image/${ext === "jpg" ? "jpeg" : ext}`;
+
+  if (typeof window !== "undefined" && typeof (window as any).FileReader !== "undefined") {
+    // Web: fetch the blob URI and append as a proper Blob
+    const blob = await fetch(imageUri).then(r => r.blob());
+    form.append("photo", blob, `avatar.${ext}`);
+  } else {
+    // Native: React Native FormData accepts {uri, name, type}
+    form.append("photo", { uri: imageUri, name: `avatar.${ext}`, type: mimeType } as any);
+  }
+
+  return form;
+}
+
 // ── HU-003b: Subir foto de perfil ─────────────────────────────────────────────
 export async function uploadProfilePhoto(
   userId: string,
@@ -79,21 +96,12 @@ export async function uploadProfilePhoto(
   const token = await getStoredToken();
   const BASE_URL = "https://padelhub-backend-phi.vercel.app/api";
 
-  const form = new FormData();
-  const ext  = imageUri.split(".").pop() ?? "jpg";
-  form.append("photo", {
-    uri:  imageUri,
-    name: `avatar.${ext}`,
-    type: `image/${ext === "jpg" ? "jpeg" : ext}`,
-  } as any);
+  const form = await buildPhotoForm(imageUri);
 
-  const res = await fetch(`${BASE_URL}/users/${userId}/photo`, {
+  const res = await fetch(`${BASE_URL}/users/${userId}/profile/photo`, {
     method:  "POST",
-    headers: {
-      "Content-Type":  "multipart/form-data",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: form,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body:    form,
   });
 
   const data = await res.json().catch(() => ({}));

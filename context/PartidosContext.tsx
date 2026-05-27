@@ -38,6 +38,12 @@ export interface MmrHistory {
   delta: number;
 }
 
+export interface MatchWindow {
+  opens_at: string;
+  closes_at: string;
+  is_active: boolean;
+}
+
 export interface Partido {
   id: string;
   club: string;
@@ -55,6 +61,7 @@ export interface Partido {
   created_at?: string;
   match_results?: MatchResult;
   mmr_history?: MmrHistory[];
+  match_window?: MatchWindow;
 }
 
 // ── Display helpers ────────────────────────────────────────────────────────────

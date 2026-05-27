@@ -56,9 +56,14 @@ export default function InvitacionesScreen() {
     if (!user?.id) return;
     setResponding(inv.id);
     try {
-      await respondInvitation(inv.id, user.id, status);
-      showToast(status === "accepted" ? "¡Te uniste al partido!" : "Invitación rechazada");
+      const res = await respondInvitation(inv.id, user.id, status);
       setInvitaciones(prev => prev.filter(i => i.id !== inv.id));
+      if (status === "accepted" && res.match?.id) {
+        showToast("¡Te uniste al partido!");
+        router.push(`/(app)/partido/${res.match.id}` as any);
+      } else {
+        showToast("Invitación rechazada");
+      }
     } catch (e: any) {
       showToast(e.message ?? "Error al responder la invitación");
     } finally {
@@ -77,7 +82,7 @@ export default function InvitacionesScreen() {
       >
         {/* Header */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 20, paddingBottom: 16 }}>
-          <TouchableOpacity style={S.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={S.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace("/(app)/home")}>
             <Text style={S.backBtnText}>←</Text>
           </TouchableOpacity>
           <Text style={{ fontSize: 18, fontWeight: "700", color: C.text }}>Invitaciones</Text>

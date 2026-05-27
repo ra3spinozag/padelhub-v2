@@ -70,7 +70,7 @@ export default function PerfilEditarScreen() {
         photo_url: photoUri,
       });
       setSuccess(true);
-      setTimeout(() => router.back(), 1200);
+      setTimeout(() => router.canGoBack() ? router.back() : router.replace("/(app)/home"), 1200);
     } catch (e: any) {
       setError(e.message ?? "No se pudo guardar los cambios.");
     } finally {
@@ -84,7 +84,7 @@ export default function PerfilEditarScreen() {
 
         {/* Header */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 20, paddingBottom: 16 }}>
-          <TouchableOpacity style={S.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={S.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace("/(app)/home")}>
             <Text style={S.backBtnText}>←</Text>
           </TouchableOpacity>
           <Text style={{ fontSize: 18, fontWeight: "700", color: C.text }}>Editar perfil</Text>

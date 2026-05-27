@@ -74,13 +74,29 @@ export async function getUserInvitations(
   );
 }
 
+export interface RespondInvitationResult {
+  message: string;
+  assigned_team?: "team_a" | "team_b";
+  match?: {
+    id: string;
+    club: string;
+    status: string;
+    is_full: boolean;
+  };
+  invitation?: {
+    id: string;
+    status: "declined";
+    responded_at: string;
+  };
+}
+
 export async function respondInvitation(
   invitationId: string,
   userId: string,
   status: "accepted" | "declined"
-): Promise<void> {
+): Promise<RespondInvitationResult> {
   const token = await getStoredToken();
-  await apiFetch<{ message: string }>(
+  return apiFetch<RespondInvitationResult>(
     `/invitations/${invitationId}`,
     { method: "PATCH", body: JSON.stringify({ user_id: userId, status }) },
     token ?? undefined

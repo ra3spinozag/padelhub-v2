@@ -8,8 +8,9 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
-import { getInitials, usePartidos } from "../../context/PartidosContext";
+import { usePartidos } from "../../context/PartidosContext";
 import { C, S } from "../../theme";
+import { UserAvatar } from "../../components/UserAvatar";
 
 const CLUBS = [
   { nombre: "Viña Pádel Club",        abre: "09:00", cierra: "22:30" },
@@ -60,7 +61,7 @@ export default function CrearScreen() {
   const [toast,         setToast]         = useState("");
   const [submitting,    setSubmitting]    = useState(false);
 
-  const initiales = user?.name ? getInitials(user.name) : "?";
+
 
   useEffect(() => {
     if (!selectedClub) return;
@@ -111,7 +112,7 @@ export default function CrearScreen() {
 
         {/* Header */}
         <View style={{ flexDirection:"row", alignItems:"center", justifyContent:"space-between", padding:20, paddingBottom:16 }}>
-          <TouchableOpacity style={S.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={S.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace("/(app)/home")}>
             <Text style={S.backBtnText}>←</Text>
           </TouchableOpacity>
           <Text style={{ fontSize:18, fontWeight:"700", color:C.text }}>Crear partido</Text>
@@ -249,9 +250,7 @@ export default function CrearScreen() {
 
           {/* Tu slot */}
           <View style={[S.card, { flexDirection:"row", alignItems:"center", gap:12, marginBottom:20 }]}>
-            <View style={[S.avatar, { width:40, height:40, backgroundColor:C.accent }]}>
-              <Text style={[S.avatarText, { fontSize:15 }]}>{initiales}</Text>
-            </View>
+            <UserAvatar name={user?.name ?? "?"} photoUrl={user?.photo_url} size={40} />
             <View style={{ flex:1 }}>
               <Text style={{ fontSize:14, fontWeight:"600", color:C.text }}>{user?.name ?? "Tú"}</Text>
               <Text style={{ fontSize:12, color:C.text2 }}>Organizador · {user?.level ?? "sin nivel"}</Text>

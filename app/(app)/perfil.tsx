@@ -1,8 +1,8 @@
 import { useRouter } from "expo-router";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
-import { getInitials } from "../../context/PartidosContext";
 import { C, S } from "../../theme";
+import { UserAvatar } from "../../components/UserAvatar";
 
 const MMR_EVOLUCION = [980, 1020, 1005, 1080, 1120, 1190, 1248];
 const SEMANAS       = ["S1","S2","S3","S4","S5","S6","S7"];
@@ -52,7 +52,7 @@ export default function PerfilScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
-  const initiales    = user?.name ? getInitials(user.name) : "?";
+
   const historial    = user?.id ? (HISTORIAL_DEMO[user.id] ?? []) : [];
   const numPartidos  = historial.length;
   const victorias    = historial.filter((p) => p.match_results.winner === p.myTeam).length;
@@ -71,7 +71,7 @@ export default function PerfilScreen() {
 
         {/* Header */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 20, paddingBottom: 16 }}>
-          <TouchableOpacity style={S.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={S.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace("/(app)/home")}>
             <Text style={S.backBtnText}>←</Text>
           </TouchableOpacity>
           <Text style={{ fontSize: 18, fontWeight: "700", color: C.text }}>Mi perfil</Text>
@@ -87,9 +87,7 @@ export default function PerfilScreen() {
 
           {/* Cabecera usuario */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 16 }}>
-            <View style={[S.avatar, { width: 64, height: 64, backgroundColor: C.accent, borderRadius: 20 }]}>
-              <Text style={[S.avatarText, { fontSize: 22 }]}>{initiales}</Text>
-            </View>
+            <UserAvatar name={user?.name ?? "?"} photoUrl={user?.photo_url} size={64} borderRadius={20} />
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 18, fontWeight: "800", color: C.text, textTransform: "uppercase", lineHeight: 22, marginBottom: 6 }}>
                 {user?.name ?? "Usuario"}

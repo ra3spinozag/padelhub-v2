@@ -7,6 +7,7 @@ import {
   parseMatchTime, usePartidos, type Partido
 } from "../../context/PartidosContext";
 import { listMatches } from "../../services/matches.service";
+import { getSuggestedRivals, type SuggestedRival } from "../../services/rivals.service";
 import { C, S } from "../../theme";
 import { UserAvatar } from "../../components/UserAvatar";
 
@@ -15,6 +16,7 @@ export default function HomeScreen() {
   const { partidos }     = usePartidos();
   const router           = useRouter();
   const [misActivos, setMisActivos] = useState<Partido[]>([]);
+  const [rivals,     setRivals]     = useState<SuggestedRival[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -35,8 +37,15 @@ export default function HomeScreen() {
           // keep existing state
         }
       })();
+
+      if (user.rut) {
+        getSuggestedRivals(user.rut, { limit: 5 })
+          .then((res) => { if (!cancelled) setRivals(res.rivals); })
+          .catch(() => {});
+      }
+
       return () => { cancelled = true; };
-    }, [user?.id, user?.zone])
+    }, [user?.id, user?.zone, user?.rut])
   );
 
   const proximoPartido: Partido | null =
@@ -137,6 +146,42 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Rivales sugeridos */}
+        {rivals.length > 0 && (
+          <>
+            <Text style={S.sectionLabel}>Rivales sugeridos</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 10, paddingBottom: 4, marginBottom: 20 }}
+            >
+              {rivals.map((rival) => (
+                <TouchableOpacity
+                  key={rival.id}
+                  style={[S.card, { width: 140, padding: 14, alignItems: "center", gap: 8 }]}
+                  onPress={() => router.push("/(app)/crear")}
+                >
+                  <UserAvatar name={rival.name} photoUrl={rival.photo_url} size={48} borderRadius={15} />
+                  <View style={{ alignItems: "center", gap: 2 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: C.text, textAlign: "center" }} numberOfLines={1}>
+                      {rival.name.split(" ")[0]}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: C.text2 }}>{rival.zone}</Text>
+                  </View>
+                  <View style={{ alignItems: "center", gap: 4 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "800", color: C.text }}>{rival.mmr}</Text>
+                    <View style={[S.pill, rival.mmr_diff <= 30 ? S.pillGreen : S.pillGray]}>
+                      <Text style={[S.pillText, rival.mmr_diff <= 30 ? S.pillGreenText : S.pillGrayText]}>
+                        Δ {rival.mmr_diff} MMR
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        )}
 
         {/* Actividad reciente */}
         <Text style={S.sectionLabel}>Actividad reciente</Text>

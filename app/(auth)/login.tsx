@@ -160,18 +160,6 @@ export default function LoginScreen() {
             : <Text style={S.btnText}>Entrar</Text>}
         </TouchableOpacity>
 
-        {/* Divider */}
-        <View style={S.divider}>
-          <View style={S.dividerLine} />
-          <Text style={S.dividerText}>o continúa con</Text>
-          <View style={S.dividerLine} />
-        </View>
-
-        {/* WhatsApp */}
-        <TouchableOpacity style={S.btnGhost}>
-          <View style={{ width: 16, height: 16, backgroundColor: "#25d366", borderRadius: 8 }} />
-          <Text style={S.btnGhostText}>Continuar con WhatsApp</Text>
-        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );

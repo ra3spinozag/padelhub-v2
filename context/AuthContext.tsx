@@ -16,6 +16,7 @@ import {
   type RegisterData,
   type User,
 } from "../services/auth.service";
+import { getPushToken, registerDeviceToken, unregisterDeviceToken } from "../services/notifications.service";
 
 const USER_KEY = "ph_user";
 
@@ -41,6 +42,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authed) {
         const stored = await getStoredUser();
         setUser(stored);
+        if (stored?.rut) {
+          getPushToken()
+            .then((token) => { if (token) registerDeviceToken(stored.rut!, token); })
+            .catch(() => {});
+        }
       }
       setLoading(false);
     })();
@@ -49,14 +55,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (rut: number, password: string) => {
     const { user } = await loginUser(rut, password);
     setUser(user);
+    if (user.rut) {
+      getPushToken()
+        .then((token) => { if (token) registerDeviceToken(user.rut!, token); })
+        .catch(() => {});
+    }
   };
 
   const register = async (data: RegisterData) => {
     const { user } = await registerUser(data);
     setUser(user);
+    if (user.rut) {
+      getPushToken()
+        .then((token) => { if (token) registerDeviceToken(user.rut!, token); })
+        .catch(() => {});
+    }
   };
 
   const logout = async () => {
+    if (user?.rut) {
+      await unregisterDeviceToken(user.rut).catch(() => {});
+    }
     await logoutUser();
     setUser(null);
   };
@@ -72,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const updated = await updateProfile(user.id, data);
-      setUser(updated);
+      setUser({ ...snapshot, ...updated });
     } catch (e) {
       // Revierte al estado anterior si la API falla
       setUser(snapshot);

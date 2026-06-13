@@ -1,5 +1,5 @@
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -7,6 +7,8 @@ import {
   parseMatchTime, usePartidos, type Partido
 } from "../../context/PartidosContext";
 import { listMatches } from "../../services/matches.service";
+import { getSuggestedRivals, type SuggestedRival } from "../../services/rivals.service";
+import { getUnreadCount } from "../../services/notifications-center.service";
 import { C, S } from "../../theme";
 import { UserAvatar } from "../../components/UserAvatar";
 
@@ -14,25 +16,42 @@ export default function HomeScreen() {
   const { user, logout } = useAuth();
   const { partidos }     = usePartidos();
   const router           = useRouter();
-  const [misActivos, setMisActivos] = useState<Partido[]>([]);
+  const [misActivos,   setMisActivos]   = useState<Partido[]>([]);
+  const [rivals,       setRivals]       = useState<SuggestedRival[]>([]);
+  const [unreadCount,  setUnreadCount]  = useState(0);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    (async () => {
-      try {
-        const [inProgress, confirmed] = await Promise.all([
-          listMatches({ zone: user.zone ?? undefined, status: "in_progress" }),
-          listMatches({ zone: user.zone ?? undefined, status: "confirmed" }),
-        ]);
-        const all = [...inProgress, ...confirmed];
-        setMisActivos(all.filter(m =>
-          m.players.some(p => p.id === user.id) || m.organizer?.id === user.id
-        ));
-      } catch {
-        // keep existing state
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id) return;
+      let cancelled = false;
+      (async () => {
+        try {
+          const [inProgress, confirmed] = await Promise.all([
+            listMatches({ zone: user.zone ?? undefined, status: "in_progress" }),
+            listMatches({ zone: user.zone ?? undefined, status: "confirmed" }),
+          ]);
+          if (cancelled) return;
+          const all = [...inProgress, ...confirmed];
+          setMisActivos(all.filter(m =>
+            m.players.some(p => p.id === user.id) || m.organizer?.id === user.id
+          ));
+        } catch {
+          // keep existing state
+        }
+      })();
+
+      if (user.rut) {
+        getSuggestedRivals(user.rut, { limit: 5 })
+          .then((res) => { if (!cancelled) setRivals(res.rivals); })
+          .catch(() => {});
+        getUnreadCount(user.rut)
+          .then((count) => { if (!cancelled) setUnreadCount(count); })
+          .catch(() => {});
       }
-    })();
-  }, [user?.id, user?.zone]);
+
+      return () => { cancelled = true; };
+    }, [user?.id, user?.zone, user?.rut])
+  );
 
   const proximoPartido: Partido | null =
     misActivos[0] ??
@@ -58,9 +77,36 @@ export default function HomeScreen() {
               {user?.zone ? `${user.zone} · ` : ""}MMR {user?.mmr ?? 1000}
             </Text>
           </View>
-          <TouchableOpacity onPress={() => router.push("/(app)/perfil")}>
-            <UserAvatar name={user?.name ?? "?"} photoUrl={user?.photo_url} size={44} borderRadius={14} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <TouchableOpacity
+              onPress={() => router.push("/(app)/notificaciones" as any)}
+              style={{ position: "relative" }}
+            >
+              <View style={{
+                width: 44, height: 44, backgroundColor: C.bg3,
+                borderRadius: 14, borderWidth: 1, borderColor: C.border,
+                alignItems: "center", justifyContent: "center",
+              }}>
+                <Text style={{ fontSize: 20 }}>🔔</Text>
+              </View>
+              {unreadCount > 0 && (
+                <View style={{
+                  position: "absolute", top: -4, right: -4,
+                  backgroundColor: C.accent, borderRadius: 10,
+                  minWidth: 18, height: 18, paddingHorizontal: 4,
+                  alignItems: "center", justifyContent: "center",
+                  borderWidth: 2, borderColor: C.bg,
+                }}>
+                  <Text style={{ fontSize: 10, color: "#fff", fontWeight: "700", lineHeight: 14 }}>
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/(app)/perfil")}>
+              <UserAvatar name={user?.name ?? "?"} photoUrl={user?.photo_url} size={44} borderRadius={14} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* MMR card */}
@@ -132,6 +178,42 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Rivales sugeridos */}
+        {rivals.length > 0 && (
+          <>
+            <Text style={S.sectionLabel}>Rivales sugeridos</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 10, paddingBottom: 4, marginBottom: 20 }}
+            >
+              {rivals.map((rival) => (
+                <TouchableOpacity
+                  key={rival.id}
+                  style={[S.card, { width: 140, padding: 14, alignItems: "center", gap: 8 }]}
+                  onPress={() => router.push("/(app)/crear")}
+                >
+                  <UserAvatar name={rival.name} photoUrl={rival.photo_url} size={48} borderRadius={15} />
+                  <View style={{ alignItems: "center", gap: 2 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: C.text, textAlign: "center" }} numberOfLines={1}>
+                      {rival.name.split(" ")[0]}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: C.text2 }}>{rival.zone}</Text>
+                  </View>
+                  <View style={{ alignItems: "center", gap: 4 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "800", color: C.text }}>{rival.mmr}</Text>
+                    <View style={[S.pill, rival.mmr_diff <= 30 ? S.pillGreen : S.pillGray]}>
+                      <Text style={[S.pillText, rival.mmr_diff <= 30 ? S.pillGreenText : S.pillGrayText]}>
+                        Δ {rival.mmr_diff} MMR
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        )}
 
         {/* Actividad reciente */}
         <Text style={S.sectionLabel}>Actividad reciente</Text>

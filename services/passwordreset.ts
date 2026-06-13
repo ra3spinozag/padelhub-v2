@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiFetch } from "./api";
 
-const RESET_TOKEN_KEY = "ph_reset_token";
+const RESET_RUT_KEY  = "ph_reset_rut";
+const RESET_CODE_KEY = "ph_reset_code";
 
 export async function sendSmsOtp(rut: number): Promise<void> {
   await apiFetch<{ message: string }>("/auth/forgot-password", {
@@ -10,22 +11,25 @@ export async function sendSmsOtp(rut: number): Promise<void> {
   });
 }
 
-export async function verifyOtp(rut: number, otp: string): Promise<void> {
-  const data = await apiFetch<{ resetToken: string }>("/auth/verify-otp", {
+export async function verifyOtp(rut: number, code: string): Promise<void> {
+  await apiFetch<{ message: string; valid: boolean }>("/auth/verify-otp", {
     method: "POST",
-    body: JSON.stringify({ rut, otp }),
+    body: JSON.stringify({ rut, code }),
   });
-  await AsyncStorage.setItem(RESET_TOKEN_KEY, data.resetToken);
+  await AsyncStorage.multiSet([
+    [RESET_RUT_KEY,  String(rut)],
+    [RESET_CODE_KEY, code],
+  ]);
 }
 
 export async function resetPasswordWithOtp(newPassword: string): Promise<void> {
-  const resetToken = await AsyncStorage.getItem(RESET_TOKEN_KEY);
-  if (!resetToken) throw new Error("Sesión de recuperación expirada. Inicia el proceso de nuevo.");
+  const [[, rutStr], [, code]] = await AsyncStorage.multiGet([RESET_RUT_KEY, RESET_CODE_KEY]);
+  if (!rutStr || !code) throw new Error("Sesión de recuperación expirada. Inicia el proceso de nuevo.");
 
   await apiFetch<{ message: string }>("/auth/reset-password", {
     method: "POST",
-    body: JSON.stringify({ resetToken, newPassword }),
+    body: JSON.stringify({ rut: Number(rutStr), code, new_password: newPassword }),
   });
 
-  await AsyncStorage.removeItem(RESET_TOKEN_KEY);
+  await AsyncStorage.multiRemove([RESET_RUT_KEY, RESET_CODE_KEY]);
 }

@@ -28,6 +28,14 @@
     "plugins": [
       "expo-router",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#4f46e5",
+          "defaultChannel": "default"
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "PadelHub necesita la cámara para escanear los QR de partidos."

@@ -21,7 +21,8 @@ export async function apiFetch<T>(
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new ApiError(res.status, (data as any)?.message ?? `Error ${res.status}`);
+    const msg = (data as any)?.message ?? (data as any)?.error ?? `Error ${res.status}`;
+    throw new ApiError(res.status, msg);
   }
   return data as T;
 }

@@ -256,11 +256,22 @@ export default function PartidoDetailScreen() {
 
         {/* Match info */}
         <View style={[S.card, { marginBottom: 16 }]}>
-          <View style={{ flexDirection: "row", gap: 6, marginBottom: 10 }}>
-            <View style={[S.pill, S.pillPurple]}>
-              <Text style={[S.pillText, S.pillPurpleText]}>{getFormatoLabel(partido.format)}</Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+            <View style={{ flexDirection: "row", gap: 6, flex: 1, flexWrap: "wrap" }}>
+              <View style={[S.pill, S.pillPurple]}>
+                <Text style={[S.pillText, S.pillPurpleText]}>{getFormatoLabel(partido.format)}</Text>
+              </View>
+              <StatusPill status={partido.status} />
             </View>
-            <StatusPill status={partido.status} />
+            {isPlayer && ["open", "confirmed", "in_progress"].includes(partido.status) && (
+              <TouchableOpacity
+                style={{ backgroundColor: "rgba(79,70,229,0.15)", borderWidth: 1, borderColor: C.border2, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 5 }}
+                onPress={() => router.push(`/(app)/chat/${partido.id}` as any)}
+              >
+                <Text style={{ fontSize: 13 }}>💬</Text>
+                <Text style={{ fontSize: 12, color: C.accent, fontWeight: "600" }}>Chat</Text>
+              </TouchableOpacity>
+            )}
           </View>
           <Text style={{ fontSize: 19, fontWeight: "700", color: C.text, marginBottom: 4 }}>{partido.club}</Text>
           <Text style={{ fontSize: 13, color: C.text2 }}>
@@ -546,26 +557,38 @@ export default function PartidoDetailScreen() {
         )}
 
         {/* FINISHED */}
-        {partido.status === "finished" && resultado && (
-          <View style={[S.card, { gap: 12 }]}>
-            <View style={{ alignItems: "center" }}>
-              <Text style={{ fontSize: 32, marginBottom: 4 }}>🏆</Text>
-              <Text style={{ fontSize: 16, fontWeight: "800", color: C.text }}>Partido finalizado</Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 12, justifyContent: "space-around", paddingVertical: 6 }}>
-              {[
-                { label: "Equipo A", score: resultado.score_team_a },
-                { label: "Equipo B", score: resultado.score_team_b },
-              ].map(({ label, score }) => (
-                <View key={label} style={{ alignItems: "center" }}>
-                  <Text style={{ fontSize: 11, color: C.text2, marginBottom: 4 }}>{label}</Text>
-                  <Text style={{ fontSize: 32, fontWeight: "800", color: C.text }}>{score}</Text>
+        {partido.status === "finished" && (
+          <View style={{ gap: 10 }}>
+            {resultado && (
+              <View style={[S.card, { gap: 12 }]}>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ fontSize: 32, marginBottom: 4 }}>🏆</Text>
+                  <Text style={{ fontSize: 16, fontWeight: "800", color: C.text }}>Partido finalizado</Text>
                 </View>
-              ))}
-            </View>
-            <Text style={{ textAlign: "center", fontSize: 15, fontWeight: "700", color: resultado.winner === "draw" ? C.text2 : "#4ade80" }}>
-              {resultado.winner === "draw" ? "Empate" : resultado.winner === "team_a" ? "Ganó Equipo A" : "Ganó Equipo B"}
-            </Text>
+                <View style={{ flexDirection: "row", gap: 12, justifyContent: "space-around", paddingVertical: 6 }}>
+                  {[
+                    { label: "Equipo A", score: resultado.score_team_a },
+                    { label: "Equipo B", score: resultado.score_team_b },
+                  ].map(({ label, score }) => (
+                    <View key={label} style={{ alignItems: "center" }}>
+                      <Text style={{ fontSize: 11, color: C.text2, marginBottom: 4 }}>{label}</Text>
+                      <Text style={{ fontSize: 32, fontWeight: "800", color: C.text }}>{score}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={{ textAlign: "center", fontSize: 15, fontWeight: "700", color: resultado.winner === "draw" ? C.text2 : "#4ade80" }}>
+                  {resultado.winner === "draw" ? "Empate" : resultado.winner === "team_a" ? "Ganó Equipo A" : "Ganó Equipo B"}
+                </Text>
+              </View>
+            )}
+            {isPlayer && (
+              <TouchableOpacity
+                style={S.btn}
+                onPress={() => router.push(`/(app)/valoracion/${partido.id}` as any)}
+              >
+                <Text style={S.btnText}>⭐ Valorar jugadores</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 

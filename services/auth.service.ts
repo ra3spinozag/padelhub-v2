@@ -62,13 +62,15 @@ export async function updateProfile(
   data: Partial<User>
 ): Promise<User> {
   const token = await getStoredToken();
-  const updated = await apiFetch<User>(
+  const raw = await getStoredUser();
+  const updated = await apiFetch<Partial<User>>(
     `/users/${userId}/profile`,
     { method: "PUT", body: JSON.stringify(data) },
     token ?? undefined
   );
-  await AsyncStorage.setItem("ph_user", JSON.stringify(updated));
-  return updated;
+  const merged = { ...(raw ?? {}), ...updated } as User;
+  await AsyncStorage.setItem("ph_user", JSON.stringify(merged));
+  return merged;
 }
 
 async function buildPhotoForm(imageUri: string): Promise<FormData> {
@@ -107,6 +109,56 @@ export async function uploadProfilePhoto(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as any)?.message ?? `Error ${res.status}`);
   return (data as { photo_url: string }).photo_url;
+}
+
+// ── Perfil completo con stats ─────────────────────────────────────────────────
+export interface ProfileStats {
+  matches_played: number;
+  rating_average: number;
+  rating_count: number;
+}
+
+export interface ProfileResponse {
+  profile: User;
+  stats: ProfileStats;
+}
+
+export async function getProfile(rut: number): Promise<ProfileResponse> {
+  const token = await getStoredToken();
+  return apiFetch<ProfileResponse>(`/users/${rut}/profile`, {}, token ?? undefined);
+}
+
+// ── Historial MMR ─────────────────────────────────────────────────────────────
+export interface MmrHistoryEntry {
+  id: string;
+  mmr_before: number;
+  mmr_after: number;
+  delta: number;
+  calculated_at: string;
+  match: {
+    id: string;
+    club: string;
+    format: "doubles" | "singles";
+    match_date: string;
+  };
+}
+
+export interface MmrHistoryResponse {
+  total: number;
+  limit: number;
+  history: MmrHistoryEntry[];
+}
+
+export async function getMmrHistory(
+  rut: number,
+  limit = 20
+): Promise<MmrHistoryResponse> {
+  const token = await getStoredToken();
+  return apiFetch<MmrHistoryResponse>(
+    `/users/${rut}/mmr-history?limit=${limit}`,
+    {},
+    token ?? undefined
+  );
 }
 
 // ── Listar usuarios (para picker de invitaciones) ─────────────────────────────

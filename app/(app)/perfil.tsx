@@ -1,64 +1,60 @@
-import { useRouter } from "expo-router";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
+import { getMmrHistory, getProfile, type MmrHistoryEntry, type ProfileStats } from "../../services/auth.service";
 import { C, S } from "../../theme";
 import { UserAvatar } from "../../components/UserAvatar";
 
-const MMR_EVOLUCION = [980, 1020, 1005, 1080, 1120, 1190, 1248];
-const SEMANAS       = ["S1","S2","S3","S4","S5","S6","S7"];
+const MESES_ES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
-// Demo de historial usando la estructura del backend (match_results + mmr_history)
-const HISTORIAL_DEMO: Record<string, {
-  id: string;
-  club: string;
-  format: "doubles" | "singles";
-  match_date: string;
-  match_results: { score_team_a: string; score_team_b: string; winner: "team_a" | "team_b" };
-  mmr_history: { delta: number; mmr_before: number; mmr_after: number };
-  myTeam: "team_a" | "team_b";
-}[]> = {
-  "e8a1b3c4-ad56-4d23-9871-bcde12345678": [
-    {
-      id: "match-hist-001",
-      club: "Club Pádel Viña del Mar",
-      format: "doubles",
-      match_date: "2026-05-18T00:00:00.000Z",
-      match_results: { score_team_a: "6-3 / 6-4", score_team_b: "3-6 / 4-6", winner: "team_a" },
-      mmr_history: { delta: 18, mmr_before: 1230, mmr_after: 1248 },
-      myTeam: "team_a",
-    },
-    {
-      id: "match-hist-002",
-      club: "BluePadel",
-      format: "doubles",
-      match_date: "2026-05-16T00:00:00.000Z",
-      match_results: { score_team_a: "7-5 / 6-2", score_team_b: "5-7 / 2-6", winner: "team_a" },
-      mmr_history: { delta: 22, mmr_before: 1208, mmr_after: 1230 },
-      myTeam: "team_a",
-    },
-    {
-      id: "match-hist-003",
-      club: "Viña Pádel Club",
-      format: "doubles",
-      match_date: "2026-05-14T00:00:00.000Z",
-      match_results: { score_team_a: "3-6 / 4-6", score_team_b: "6-3 / 6-4", winner: "team_b" },
-      mmr_history: { delta: -14, mmr_before: 1222, mmr_after: 1208 },
-      myTeam: "team_a",
-    },
-  ],
-};
+function formatMatchDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getUTCDate()} ${MESES_ES[d.getUTCMonth()]}`;
+}
 
 export default function PerfilScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
+  const [history,     setHistory]     = useState<MmrHistoryEntry[]>([]);
+  const [total,       setTotal]       = useState(0);
+  const [loadingHist, setLoadingHist] = useState(true);
+  const [stats,       setStats]       = useState<ProfileStats | null>(null);
 
-  const historial    = user?.id ? (HISTORIAL_DEMO[user.id] ?? []) : [];
-  const numPartidos  = historial.length;
-  const victorias    = historial.filter((p) => p.match_results.winner === p.myTeam).length;
-  const pctVictorias = numPartidos > 0 ? Math.round((victorias / numPartidos) * 100) : 0;
-  const esNuevo      = numPartidos === 0;
-  const maxMMR       = Math.max(...MMR_EVOLUCION);
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.rut) { setLoadingHist(false); return; }
+      let cancelled = false;
+      setLoadingHist(true);
+      getMmrHistory(user.rut, 20)
+        .then((res) => {
+          if (cancelled) return;
+          setHistory(res.history);
+          setTotal(res.total);
+        })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setLoadingHist(false); });
+      getProfile(user.rut)
+        .then((res) => { if (!cancelled) setStats(res.stats); })
+        .catch(() => {});
+      return () => { cancelled = true; };
+    }, [user?.rut])
+  );
+
+  const victorias    = history.filter((e) => e.delta > 0).length;
+  const pctVictorias = total > 0 ? Math.round((victorias / total) * 100) : 0;
+  const esNuevo      = !loadingHist && total === 0;
+
+  // Últimas 7 entradas en orden cronológico para el gráfico
+  const chartData = [...history].reverse().slice(-7);
+  const maxMMR    = chartData.length > 0 ? Math.max(...chartData.map((e) => e.mmr_after)) : 1000;
+
+  // Delta del último mes
+  const cutoff      = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const deltaRecent = history
+    .filter((e) => new Date(e.calculated_at).getTime() >= cutoff)
+    .reduce((acc, e) => acc + e.delta, 0);
 
   const handleLogout = async () => {
     await logout();
@@ -107,37 +103,44 @@ export default function PerfilScreen() {
             </View>
           </View>
 
-          {/* Datos adicionales */}
+          {/* Editar */}
           <TouchableOpacity onPress={() => router.push("/(app)/perfil-editar" as any)} style={{ alignSelf: "flex-end", marginBottom: 14 }}>
             <Text style={{ fontSize: 13, color: C.accent, textDecorationLine: "underline" }}>Editar →</Text>
           </TouchableOpacity>
 
           {/* MMR card */}
-          <View style={S.mmrBar}>
+          <TouchableOpacity style={S.mmrBar} onPress={() => router.push("/(app)/ranking" as any)}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 11, color: C.text2, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>MMR</Text>
               <Text style={S.mmrNum}>{user?.mmr ?? 1000}</Text>
               <Text style={{ fontSize: 12, color: C.text2, marginTop: 4 }}>
-                {esNuevo ? "Juega partidos para obtener ranking" : `#14 en ${user?.zone ?? "tu zona"}`}
+                {esNuevo ? "Juega partidos para obtener ranking" : `${user?.zone ?? "tu zona"}`}
               </Text>
             </View>
-            {!esNuevo && (
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={{ fontSize: 13, color: "#4ade80", fontWeight: "600" }}>▲ +127</Text>
-                <Text style={{ fontSize: 11, color: C.text2 }}>último mes</Text>
-              </View>
-            )}
-          </View>
+            <View style={{ alignItems: "flex-end", gap: 4 }}>
+              {!esNuevo && deltaRecent !== 0 && (
+                <>
+                  <Text style={{ fontSize: 13, color: deltaRecent > 0 ? "#4ade80" : "#f87171", fontWeight: "600" }}>
+                    {deltaRecent > 0 ? `▲ +${deltaRecent}` : `▼ ${deltaRecent}`}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: C.text2 }}>último mes</Text>
+                </>
+              )}
+              <Text style={{ fontSize: 12, color: C.accent, marginTop: esNuevo ? 0 : 4 }}>Ver ranking →</Text>
+            </View>
+          </TouchableOpacity>
 
           {/* Stats */}
           <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
             {[
-              { val: esNuevo ? "0" : String(numPartidos), label: "Partidos"  },
-              { val: esNuevo ? "—" : `${pctVictorias}%`, label: "Victorias" },
-              { val: esNuevo ? "—" : "4.8",              label: "Fair Play" },
+              { val: loadingHist ? "…" : String(total),                                                     label: "Partidos"  },
+              { val: loadingHist ? "…" : esNuevo ? "—" : `${pctVictorias}%`,                               label: "Victorias" },
+              { val: stats && stats.rating_count > 0 ? `${stats.rating_average.toFixed(1)} ⭐` : "—",      label: "Fair Play" },
             ].map((st) => (
               <View key={st.label} style={[S.card, { flex: 1, alignItems: "center", padding: 14 }]}>
-                <Text style={{ fontSize: 20, fontWeight: "800", color: st.val === "—" ? C.text2 : C.text, marginBottom: 4 }}>{st.val}</Text>
+                <Text style={{ fontSize: 20, fontWeight: "800", color: st.val === "—" || st.val === "…" ? C.text2 : C.text, marginBottom: 4 }}>
+                  {st.val}
+                </Text>
                 <Text style={{ fontSize: 11, color: C.text2, textTransform: "uppercase", letterSpacing: 0.6 }}>{st.label}</Text>
               </View>
             ))}
@@ -146,24 +149,28 @@ export default function PerfilScreen() {
           {/* Evolución MMR */}
           <View style={[S.card, { marginBottom: 14 }]}>
             <Text style={{ fontSize: 11, color: C.text2, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 14 }}>
-              Evolución MMR — Últimas 7 semanas
+              Evolución MMR — Últimos partidos
             </Text>
-            {esNuevo ? (
+            {loadingHist ? (
+              <View style={{ height: 80, alignItems: "center", justifyContent: "center" }}>
+                <ActivityIndicator color={C.accent} size="small" />
+              </View>
+            ) : esNuevo ? (
               <View style={{ height: 80, alignItems: "center", justifyContent: "center", gap: 6 }}>
                 <Text style={{ fontSize: 24 }}>📈</Text>
                 <Text style={{ fontSize: 12, color: C.text2, textAlign: "center" }}>Tu evolución aparecerá aquí cuando juegues partidos</Text>
               </View>
             ) : (
               <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 6, height: 80 }}>
-                {MMR_EVOLUCION.map((v, i) => (
-                  <View key={i} style={{ flex: 1, alignItems: "center", gap: 4 }}>
+                {chartData.map((e, i) => (
+                  <View key={e.id} style={{ flex: 1, alignItems: "center", gap: 4 }}>
                     <View style={{
                       width: "100%",
-                      height: (v / maxMMR) * 72,
-                      backgroundColor: i === MMR_EVOLUCION.length - 1 ? C.accent : "rgba(79,70,229,0.35)",
+                      height: Math.max(4, (e.mmr_after / maxMMR) * 72),
+                      backgroundColor: i === chartData.length - 1 ? C.accent : "rgba(79,70,229,0.35)",
                       borderRadius: 4,
                     }} />
-                    <Text style={{ fontSize: 10, color: C.text2 }}>{SEMANAS[i]}</Text>
+                    <Text style={{ fontSize: 10, color: C.text2 }}>{formatMatchDate(e.match.match_date)}</Text>
                   </View>
                 ))}
               </View>
@@ -172,7 +179,12 @@ export default function PerfilScreen() {
 
           {/* Últimos partidos */}
           <Text style={[S.sectionLabel, { marginBottom: 10 }]}>Últimos partidos</Text>
-          {esNuevo ? (
+
+          {loadingHist ? (
+            <View style={[S.card, { alignItems: "center", padding: 28, marginBottom: 8 }]}>
+              <ActivityIndicator color={C.accent} />
+            </View>
+          ) : esNuevo ? (
             <View style={[S.card, { alignItems: "center", padding: 28, marginBottom: 8 }]}>
               <Text style={{ fontSize: 32, marginBottom: 10 }}>🎾</Text>
               <Text style={{ fontSize: 14, fontWeight: "600", color: C.text, marginBottom: 6 }}>Sin partidos aún</Text>
@@ -185,29 +197,29 @@ export default function PerfilScreen() {
             </View>
           ) : (
             <View style={[S.card, { marginBottom: 8 }]}>
-              {historial.map((p, i) => {
-                const win   = p.match_results.winner === p.myTeam;
-                const score = win ? p.match_results.score_team_a : p.match_results.score_team_b;
-                const delta = p.mmr_history.delta;
+              {history.map((e, i) => {
+                const win = e.delta > 0;
                 return (
-                  <View key={p.id} style={{
+                  <View key={e.id} style={{
                     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                     paddingVertical: 12,
-                    borderBottomWidth: i < historial.length - 1 ? 1 : 0,
+                    borderBottomWidth: i < history.length - 1 ? 1 : 0,
                     borderBottomColor: C.border,
                   }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: win ? C.green : C.red }} />
                       <View>
                         <Text style={{ fontSize: 14, fontWeight: "600", color: C.text }}>
-                          {win ? "Victoria" : "Derrota"} · {p.club}
+                          {win ? "Victoria" : "Derrota"} · {e.match.club}
                         </Text>
-                        <Text style={{ fontSize: 12, color: C.text2 }}>{score}</Text>
+                        <Text style={{ fontSize: 12, color: C.text2 }}>
+                          {formatMatchDate(e.match.match_date)} · {e.match.format === "doubles" ? "Dobles" : "Individual"}
+                        </Text>
                       </View>
                     </View>
                     <View style={[S.pill, win ? S.pillGreen : S.pillRed]}>
                       <Text style={[S.pillText, win ? S.pillGreenText : S.pillRedText]}>
-                        {delta > 0 ? `+${delta}` : delta}
+                        {e.delta > 0 ? `+${e.delta}` : e.delta}
                       </Text>
                     </View>
                   </View>

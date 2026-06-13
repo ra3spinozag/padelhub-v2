@@ -111,6 +111,23 @@ export async function uploadProfilePhoto(
   return (data as { photo_url: string }).photo_url;
 }
 
+// ── Perfil completo con stats ─────────────────────────────────────────────────
+export interface ProfileStats {
+  matches_played: number;
+  rating_average: number;
+  rating_count: number;
+}
+
+export interface ProfileResponse {
+  profile: User;
+  stats: ProfileStats;
+}
+
+export async function getProfile(rut: number): Promise<ProfileResponse> {
+  const token = await getStoredToken();
+  return apiFetch<ProfileResponse>(`/users/${rut}/profile`, {}, token ?? undefined);
+}
+
 // ── Historial MMR ─────────────────────────────────────────────────────────────
 export interface MmrHistoryEntry {
   id: string;

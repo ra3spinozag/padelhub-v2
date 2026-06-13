@@ -2,7 +2,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
-import { getMmrHistory, type MmrHistoryEntry } from "../../services/auth.service";
+import { getMmrHistory, getProfile, type MmrHistoryEntry, type ProfileStats } from "../../services/auth.service";
 import { C, S } from "../../theme";
 import { UserAvatar } from "../../components/UserAvatar";
 
@@ -20,6 +20,7 @@ export default function PerfilScreen() {
   const [history,     setHistory]     = useState<MmrHistoryEntry[]>([]);
   const [total,       setTotal]       = useState(0);
   const [loadingHist, setLoadingHist] = useState(true);
+  const [stats,       setStats]       = useState<ProfileStats | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -34,6 +35,9 @@ export default function PerfilScreen() {
         })
         .catch(() => {})
         .finally(() => { if (!cancelled) setLoadingHist(false); });
+      getProfile(user.rut)
+        .then((res) => { if (!cancelled) setStats(res.stats); })
+        .catch(() => {});
       return () => { cancelled = true; };
     }, [user?.rut])
   );
@@ -129,9 +133,9 @@ export default function PerfilScreen() {
           {/* Stats */}
           <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
             {[
-              { val: loadingHist ? "…" : String(total),                  label: "Partidos"  },
-              { val: loadingHist ? "…" : esNuevo ? "—" : `${pctVictorias}%`, label: "Victorias" },
-              { val: "—",                                                 label: "Fair Play" },
+              { val: loadingHist ? "…" : String(total),                                                     label: "Partidos"  },
+              { val: loadingHist ? "…" : esNuevo ? "—" : `${pctVictorias}%`,                               label: "Victorias" },
+              { val: stats && stats.rating_count > 0 ? `${stats.rating_average.toFixed(1)} ⭐` : "—",      label: "Fair Play" },
             ].map((st) => (
               <View key={st.label} style={[S.card, { flex: 1, alignItems: "center", padding: 14 }]}>
                 <Text style={{ fontSize: 20, fontWeight: "800", color: st.val === "—" || st.val === "…" ? C.text2 : C.text, marginBottom: 4 }}>

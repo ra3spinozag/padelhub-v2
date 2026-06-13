@@ -8,6 +8,7 @@ import {
 } from "../../context/PartidosContext";
 import { listMatches } from "../../services/matches.service";
 import { getSuggestedRivals, type SuggestedRival } from "../../services/rivals.service";
+import { getUnreadCount } from "../../services/notifications-center.service";
 import { C, S } from "../../theme";
 import { UserAvatar } from "../../components/UserAvatar";
 
@@ -15,8 +16,9 @@ export default function HomeScreen() {
   const { user, logout } = useAuth();
   const { partidos }     = usePartidos();
   const router           = useRouter();
-  const [misActivos, setMisActivos] = useState<Partido[]>([]);
-  const [rivals,     setRivals]     = useState<SuggestedRival[]>([]);
+  const [misActivos,   setMisActivos]   = useState<Partido[]>([]);
+  const [rivals,       setRivals]       = useState<SuggestedRival[]>([]);
+  const [unreadCount,  setUnreadCount]  = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -41,6 +43,9 @@ export default function HomeScreen() {
       if (user.rut) {
         getSuggestedRivals(user.rut, { limit: 5 })
           .then((res) => { if (!cancelled) setRivals(res.rivals); })
+          .catch(() => {});
+        getUnreadCount(user.rut)
+          .then((count) => { if (!cancelled) setUnreadCount(count); })
           .catch(() => {});
       }
 
@@ -72,9 +77,36 @@ export default function HomeScreen() {
               {user?.zone ? `${user.zone} · ` : ""}MMR {user?.mmr ?? 1000}
             </Text>
           </View>
-          <TouchableOpacity onPress={() => router.push("/(app)/perfil")}>
-            <UserAvatar name={user?.name ?? "?"} photoUrl={user?.photo_url} size={44} borderRadius={14} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <TouchableOpacity
+              onPress={() => router.push("/(app)/notificaciones" as any)}
+              style={{ position: "relative" }}
+            >
+              <View style={{
+                width: 44, height: 44, backgroundColor: C.bg3,
+                borderRadius: 14, borderWidth: 1, borderColor: C.border,
+                alignItems: "center", justifyContent: "center",
+              }}>
+                <Text style={{ fontSize: 20 }}>🔔</Text>
+              </View>
+              {unreadCount > 0 && (
+                <View style={{
+                  position: "absolute", top: -4, right: -4,
+                  backgroundColor: C.accent, borderRadius: 10,
+                  minWidth: 18, height: 18, paddingHorizontal: 4,
+                  alignItems: "center", justifyContent: "center",
+                  borderWidth: 2, borderColor: C.bg,
+                }}>
+                  <Text style={{ fontSize: 10, color: "#fff", fontWeight: "700", lineHeight: 14 }}>
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/(app)/perfil")}>
+              <UserAvatar name={user?.name ?? "?"} photoUrl={user?.photo_url} size={44} borderRadius={14} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* MMR card */}

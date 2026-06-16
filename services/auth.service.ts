@@ -192,6 +192,9 @@ export async function getStoredToken(): Promise<string | null> {
 }
 
 export async function isAuthenticated(): Promise<boolean> {
-  const raw = await AsyncStorage.getItem("ph_user");
-  return !!raw;
+  const [user, token] = await Promise.all([
+    AsyncStorage.getItem("ph_user"),
+    AsyncStorage.getItem("ph_token"),
+  ]);
+  return !!(user && token);
 }

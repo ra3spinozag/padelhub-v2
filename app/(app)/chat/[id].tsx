@@ -4,6 +4,7 @@ import {
   ActivityIndicator, FlatList, KeyboardAvoidingView,
   Platform, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
 import {
   getChatMessages, sendChatMessage, type ChatMessage,
@@ -23,6 +24,7 @@ export default function ChatScreen() {
   const { id }   = useLocalSearchParams<{ id: string }>();
   const router   = useRouter();
   const { user } = useAuth();
+  const insets   = useSafeAreaInsets();
 
   const [messages,     setMessages]    = useState<ChatMessage[]>([]);
   const [loading,      setLoading]     = useState(true);
@@ -183,7 +185,9 @@ export default function ChatScreen() {
           ) : null
         }
         renderItem={({ item }) => {
-          const isMe = item.user_id === user?.id;
+          const isMe    = item.user_id === user?.id;
+          const senderName  = item.users?.name  ?? item.user_name  ?? null;
+          const senderPhoto = item.users?.photo_url ?? item.user_photo_url ?? null;
           return (
             <View style={{
               flexDirection: isMe ? "row-reverse" : "row",
@@ -193,16 +197,16 @@ export default function ChatScreen() {
             }}>
               {!isMe && (
                 <UserAvatar
-                  name={item.user_name}
-                  photoUrl={item.user_photo_url}
+                  name={senderName ?? "?"}
+                  photoUrl={senderPhoto}
                   size={28}
                   borderRadius={9}
                 />
               )}
               <View style={{ maxWidth: "76%" }}>
-                {!isMe && (
+                {!isMe && senderName && (
                   <Text style={{ fontSize: 10, color: C.text2, marginBottom: 3, marginLeft: 4 }}>
-                    {item.user_name.split(" ")[0]}
+                    {senderName.split(" ")[0]}
                   </Text>
                 )}
                 <View style={{
@@ -235,7 +239,8 @@ export default function ChatScreen() {
       {/* Input bar */}
       <View style={{
         flexDirection: "row", alignItems: "flex-end", gap: 10,
-        paddingHorizontal: 16, paddingVertical: 12,
+        paddingHorizontal: 16, paddingTop: 12,
+        paddingBottom: Math.max(12, insets.bottom),
         borderTopWidth: 1, borderTopColor: C.border,
         backgroundColor: C.bg2,
       }}>

@@ -1,11 +1,12 @@
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import {
   getNotifications, markAllRead, markOneRead,
   type AppNotification,
 } from "../../services/notifications-center.service";
+import { ApiError } from "../../services/api";
 import { C, S } from "../../theme";
 
 const TYPE_ICON: Record<string, string> = {
@@ -57,7 +58,8 @@ export default function NotificacionesScreen() {
   const [markingAll,  setMarkingAll] = useState(false);
   const [error,       setError]      = useState("");
 
-  const oldestRef = { current: null as string | null };
+  const oldestRef     = useRef<string | null>(null);
+  const localReadIds  = useRef(new Set<string>());
 
   useFocusEffect(
     useCallback(() => {
@@ -67,9 +69,13 @@ export default function NotificacionesScreen() {
       getNotifications(user.rut, { limit: 20 })
         .then((res) => {
           if (cancelled) return;
-          setNotifs(res.notifications);
+          // merge backend read state with locally-tracked reads to survive refetch
+          const merged = res.notifications.map((n) =>
+            localReadIds.current.has(n.id) ? { ...n, read: true } : n
+          );
+          setNotifs(merged);
           setHasMore(res.has_more ?? res.notifications.length >= 20);
-          oldestRef.current = res.notifications.at(-1)?.created_at ?? null;
+          oldestRef.current = merged.at(-1)?.created_at ?? null;
         })
         .catch((e) => { if (!cancelled) setError(e.message ?? "Error al cargar"); })
         .finally(() => { if (!cancelled) setLoading(false); });
@@ -79,7 +85,7 @@ export default function NotificacionesScreen() {
 
   const handleLoadMore = async () => {
     if (!user?.rut || loadingMore || !hasMore) return;
-    const before = notifs.at(-1)?.created_at;
+    const before = oldestRef.current ?? notifs.at(-1)?.created_at;
     if (!before) return;
     setLoadingMore(true);
     try {
@@ -94,10 +100,19 @@ export default function NotificacionesScreen() {
   const handleMarkAll = async () => {
     if (!user?.rut || markingAll) return;
     setMarkingAll(true);
+    const snapshot = notifs;
+    // optimistic update immediately
+    notifs.forEach((n) => localReadIds.current.add(n.id));
+    setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
     try {
       await markAllRead(user.rut);
-      setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch { /* silent */ } finally {
+    } catch (e) {
+      // only rollback on real backend errors (4xx/5xx), not CORS/network failures
+      if (e instanceof ApiError) {
+        snapshot.forEach((n) => { if (!n.read) localReadIds.current.delete(n.id); });
+        setNotifs(snapshot);
+      }
+    } finally {
       setMarkingAll(false);
     }
   };
@@ -105,6 +120,7 @@ export default function NotificacionesScreen() {
   const handleTap = async (notif: AppNotification) => {
     if (!user?.rut) return;
     if (!notif.read) {
+      localReadIds.current.add(notif.id);
       markOneRead(user.rut, notif.id).catch(() => {});
       setNotifs((prev) => prev.map((n) => n.id === notif.id ? { ...n, read: true } : n));
     }

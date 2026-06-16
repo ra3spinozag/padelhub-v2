@@ -38,17 +38,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const authed = await isAuthenticated();
-      if (authed) {
-        const stored = await getStoredUser();
-        setUser(stored);
-        if (stored?.rut) {
-          getPushToken()
-            .then((token) => { if (token) registerDeviceToken(stored.rut!, token); })
-            .catch(() => {});
+      try {
+        const authed = await isAuthenticated();
+        if (authed) {
+          const stored = await getStoredUser();
+          setUser(stored);
+          if (stored?.rut) {
+            getPushToken()
+              .then((token) => { if (token) registerDeviceToken(stored.rut!, token); })
+              .catch(() => {});
+          }
         }
+      } catch {
+        // AsyncStorage corrupto o no disponible → tratar como sesión cerrada
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
   }, []);
 

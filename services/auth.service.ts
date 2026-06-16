@@ -92,7 +92,7 @@ async function buildPhotoForm(imageUri: string): Promise<FormData> {
 
 // ── HU-003b: Subir foto de perfil ─────────────────────────────────────────────
 export async function uploadProfilePhoto(
-  userId: string,
+  rut: string,
   imageUri: string
 ): Promise<string> {
   const token = await getStoredToken();
@@ -100,7 +100,7 @@ export async function uploadProfilePhoto(
 
   const form = await buildPhotoForm(imageUri);
 
-  const res = await fetch(`${BASE_URL}/users/${userId}/profile/photo`, {
+  const res = await fetch(`${BASE_URL}/users/${rut}/profile/photo`, {
     method:  "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body:    form,

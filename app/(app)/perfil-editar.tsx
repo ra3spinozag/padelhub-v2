@@ -50,7 +50,7 @@ export default function PerfilEditarScreen() {
       setError("");
       setUploadingPhoto(true);
       try {
-        const url = await uploadProfilePhoto(user!.id, uri);
+        const url = await uploadProfilePhoto(String(user!.rut), uri);
         setPhotoUri(url);
       } catch (e: any) {
         setError(e.message ?? "No se pudo subir la foto. Intenta de nuevo.");

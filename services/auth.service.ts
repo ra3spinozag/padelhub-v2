@@ -31,11 +31,11 @@ export async function loginUser(
   rut: number,
   password: string
 ): Promise<{ user: User }> {
-  const data = await apiFetch<{ message: string; user: User; token?: string }>(
+  const data = await apiFetch<{ message: string; user: User; accessToken?: string; refreshToken?: string }>(
     "/auth/login",
     { method: "POST", body: JSON.stringify({ rut, password }) }
   );
-  if (data.token) await AsyncStorage.setItem("ph_token", data.token);
+  if (data.accessToken) await AsyncStorage.setItem("ph_token", data.accessToken);
   await AsyncStorage.setItem("ph_user", JSON.stringify(data.user));
   return { user: data.user };
 }
@@ -92,7 +92,7 @@ async function buildPhotoForm(imageUri: string): Promise<FormData> {
 
 // ── HU-003b: Subir foto de perfil ─────────────────────────────────────────────
 export async function uploadProfilePhoto(
-  userId: string,
+  rut: string,
   imageUri: string
 ): Promise<string> {
   const token = await getStoredToken();
@@ -100,7 +100,7 @@ export async function uploadProfilePhoto(
 
   const form = await buildPhotoForm(imageUri);
 
-  const res = await fetch(`${BASE_URL}/users/${userId}/profile/photo`, {
+  const res = await fetch(`${BASE_URL}/users/${rut}/profile/photo`, {
     method:  "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body:    form,
@@ -192,6 +192,9 @@ export async function getStoredToken(): Promise<string | null> {
 }
 
 export async function isAuthenticated(): Promise<boolean> {
-  const raw = await AsyncStorage.getItem("ph_user");
-  return !!raw;
+  const [user, token] = await Promise.all([
+    AsyncStorage.getItem("ph_user"),
+    AsyncStorage.getItem("ph_token"),
+  ]);
+  return !!(user && token);
 }

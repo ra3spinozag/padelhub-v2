@@ -4,10 +4,15 @@ import { getStoredToken } from "./auth.service";
 export interface ChatMessage {
   id: string;
   user_id: string;
-  user_name: string;
-  user_photo_url: string | null;
   content: string;
   created_at: string;
+  users?: {
+    name?: string | null;
+    photo_url?: string | null;
+  };
+  // campos planos por compatibilidad
+  user_name?: string | null;
+  user_photo_url?: string | null;
 }
 
 export interface ChatResponse {

@@ -35,8 +35,10 @@ export async function getPushToken(): Promise<string | null> {
   const { data } = await Notifications.getExpoPushTokenAsync(
     projectId ? { projectId } : {}
   );
-  await AsyncStorage.setItem(PUSH_TOKEN_KEY, data);
-  return data;
+  const token = typeof data === "string" ? data : (data as any)?.data ?? null;
+  if (!token) return null;
+  await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+  return token;
 }
 
 export async function registerDeviceToken(rut: number, token: string): Promise<void> {

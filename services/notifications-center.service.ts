@@ -26,11 +26,16 @@ export async function getNotifications(
   if (params?.limit)  query.set("limit",  String(params.limit));
   if (params?.before) query.set("before", params.before);
   const qs = query.toString();
-  return apiFetch<NotificationsResponse>(
+  const res = await apiFetch<Partial<NotificationsResponse>>(
     `/users/${rut}/notifications${qs ? `?${qs}` : ""}`,
     {},
     token ?? undefined
   );
+  return {
+    notifications: res.notifications ?? [],
+    unread_count:  res.unread_count  ?? 0,
+    has_more:      res.has_more      ?? false,
+  };
 }
 
 export async function getUnreadCount(rut: number): Promise<number> {

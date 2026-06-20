@@ -4,15 +4,23 @@ import {
   ActivityIndicator, FlatList, KeyboardAvoidingView,
   Platform, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
 import {
   getChatMessages, sendChatMessage, type ChatMessage,
 } from "../../../services/chat.service";
 import { UserAvatar } from "../../../components/UserAvatar";
+import { getAvatarColor } from "../../../context/PartidosContext";
 import { C, S } from "../../../theme";
 
 const MAX_CHARS = 500;
 const POLL_MS   = 5000;
+
+function userColorIndex(userId: string): number {
+  let h = 0;
+  for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) & 0xffff;
+  return h;
+}
 
 function formatTime(iso: string) {
   const d = new Date(iso);
@@ -23,6 +31,7 @@ export default function ChatScreen() {
   const { id }   = useLocalSearchParams<{ id: string }>();
   const router   = useRouter();
   const { user } = useAuth();
+  const insets   = useSafeAreaInsets();
 
   const [messages,     setMessages]    = useState<ChatMessage[]>([]);
   const [loading,      setLoading]     = useState(true);
@@ -183,35 +192,48 @@ export default function ChatScreen() {
           ) : null
         }
         renderItem={({ item }) => {
-          const isMe = item.user_id === user?.id;
+          const isMe       = item.user_id === user?.id;
+          const senderName = item.users?.name ?? item.user_name ?? null;
+          const senderPhoto = item.users?.photo_url ?? item.user_photo_url ?? null;
+          const displayName = isMe ? "Tú" : (senderName?.split(" ")[0] ?? "?");
+          const color      = getAvatarColor(userColorIndex(item.user_id));
+
           return (
             <View style={{
               flexDirection: isMe ? "row-reverse" : "row",
               alignItems: "flex-end",
-              gap: 8,
-              marginBottom: 2,
+              gap: 10,
+              marginBottom: 6,
             }}>
-              {!isMe && (
-                <UserAvatar
-                  name={item.user_name}
-                  photoUrl={item.user_photo_url}
-                  size={28}
-                  borderRadius={9}
-                />
-              )}
-              <View style={{ maxWidth: "76%" }}>
-                {!isMe && (
-                  <Text style={{ fontSize: 10, color: C.text2, marginBottom: 3, marginLeft: 4 }}>
-                    {item.user_name.split(" ")[0]}
-                  </Text>
-                )}
+              {/* Avatar */}
+              <UserAvatar
+                name={senderName ?? "?"}
+                photoUrl={isMe ? null : senderPhoto}
+                size={36}
+                borderRadius={12}
+                color={color}
+              />
+
+              <View style={{ maxWidth: "72%" }}>
+                {/* Nombre */}
+                <Text style={{
+                  fontSize: 11, fontWeight: "700",
+                  color: isMe ? C.accent : color,
+                  marginBottom: 4,
+                  textAlign: isMe ? "right" : "left",
+                  marginHorizontal: 4,
+                }}>
+                  {displayName}
+                </Text>
+
+                {/* Burbuja */}
                 <View style={{
                   backgroundColor: isMe ? C.accent : C.bg3,
-                  borderRadius: 14,
-                  borderBottomRightRadius: isMe ? 4 : 14,
-                  borderBottomLeftRadius:  isMe ? 14 : 4,
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
+                  borderRadius: 16,
+                  borderBottomRightRadius: isMe ? 4 : 16,
+                  borderBottomLeftRadius:  isMe ? 16 : 4,
+                  paddingHorizontal: 13,
+                  paddingVertical: 9,
                   borderWidth: isMe ? 0 : 1,
                   borderColor: C.border,
                 }}>
@@ -219,6 +241,8 @@ export default function ChatScreen() {
                     {item.content}
                   </Text>
                 </View>
+
+                {/* Hora */}
                 <Text style={{
                   fontSize: 10, color: C.text2, marginTop: 3,
                   textAlign: isMe ? "right" : "left",
@@ -235,7 +259,8 @@ export default function ChatScreen() {
       {/* Input bar */}
       <View style={{
         flexDirection: "row", alignItems: "flex-end", gap: 10,
-        paddingHorizontal: 16, paddingVertical: 12,
+        paddingHorizontal: 16, paddingTop: 12,
+        paddingBottom: Math.max(12, insets.bottom),
         borderTopWidth: 1, borderTopColor: C.border,
         backgroundColor: C.bg2,
       }}>

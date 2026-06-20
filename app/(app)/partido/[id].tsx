@@ -373,16 +373,34 @@ export default function PartidoDetailScreen() {
               </Text>
             </View>
 
-            {isMatchWindowActive && isOrganizer && (
-              <TouchableOpacity
-                style={[S.btn, { backgroundColor: "#059669" }, starting && S.btnDisabled]}
-                onPress={handleStartMatch}
-                disabled={starting}
-              >
-                {starting
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={S.btnText}>Iniciar partido</Text>}
-              </TouchableOpacity>
+            {isOrganizer && (
+              isMatchWindowActive ? (
+                <TouchableOpacity
+                  style={[S.btn, { backgroundColor: "#059669" }, starting && S.btnDisabled]}
+                  onPress={handleStartMatch}
+                  disabled={starting}
+                >
+                  {starting
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={S.btnText}>▶ Iniciar partido</Text>}
+                </TouchableOpacity>
+              ) : partido.match_window ? (
+                <View style={{ backgroundColor: "rgba(251,191,36,0.08)", borderWidth: 1, borderColor: "rgba(251,191,36,0.25)", borderRadius: 14, padding: 14 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: "#fbbf24", marginBottom: 4 }}>
+                    ⏳ Ventana de inicio no activa
+                  </Text>
+                  <Text style={{ fontSize: 12, color: C.text2 }}>
+                    Podrás iniciar el partido entre las{" "}
+                    <Text style={{ color: C.text, fontWeight: "600" }}>
+                      {new Date(partido.match_window.opens_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                    {" "}y las{" "}
+                    <Text style={{ color: C.text, fontWeight: "600" }}>
+                      {new Date(partido.match_window.closes_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                  </Text>
+                </View>
+              ) : null
             )}
 
             {isOrganizer ? (

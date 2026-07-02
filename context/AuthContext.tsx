@@ -1,20 +1,20 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
+    createContext,
+    useContext,
+    useEffect,
+    useState,
+    type ReactNode,
 } from "react";
 import {
-  getStoredUser,
-  isAuthenticated,
-  loginUser,
-  logoutUser,
-  registerUser,
-  updateProfile,
-  type RegisterData,
-  type User,
+    getStoredUser,
+    isAuthenticated,
+    loginUser,
+    logoutUser,
+    registerUser,
+    updateProfile,
+    type RegisterData,
+    type User,
 } from "../services/auth.service";
 import { getPushToken, registerDeviceToken, unregisterDeviceToken } from "../services/notifications.service";
 
